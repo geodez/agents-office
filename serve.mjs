@@ -62,23 +62,23 @@ const NOTES_DIR = path.join(BRAIN, 'Agents Office');
 const CLI_CWD = path.join(os.tmpdir(), 'agents-office-cli'); // an empty cwd: no CLAUDE.md, no repo context
 const version = (() => { try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version; } catch { return '?'; } })();
 const RUN_TIMEOUT = Math.max(60, +cfg.timeout || 300) * 1000; // agents with tools take longer than a plain draft
-{ const m = normModel(cfg.model); if (cfg.model && !m) console.warn(`config: model must be sonnet, opus or fable (got "${cfg.model}") — using ${DEFAULT_MODEL}`); cfg.model = m || DEFAULT_MODEL; } // V3.6: three models, by name
-{ const e = normEffort(cfg.effort); if (cfg.effort && !e) console.warn(`config: effort must be low, medium, high, xhigh or max (got "${cfg.effort}") — using the model's own`); cfg.effort = e || ''; } // V3.6.1: the office's effort, empty = the model's own
+{ const m = normModel(cfg.model); if (cfg.model && !m) console.warn(`конфигурация: модель должна быть sonnet, opus или fable (получено «${cfg.model}») — используется ${DEFAULT_MODEL}`); cfg.model = m || DEFAULT_MODEL; } // V3.6: three models, by name
+{ const e = normEffort(cfg.effort); if (cfg.effort && !e) console.warn(`конфигурация: усилие должно быть low, medium, high, xhigh или max (получено «${cfg.effort}») — используется значение модели`); cfg.effort = e || ''; } // V3.6.1: the office's effort, empty = the model's own
 mcp.configure(cfg);
 const TEAMS = teams.settings(cfg); // V3.2 (16 Sep): { enabled, max }
 const roster = loadRoster(BRAIN);
 const AGENTS = roster.agents; // id · department · lead · name · role · does · tools · brief
-for (const w of roster.problems) console.warn('agents:', w);
+for (const w of roster.problems) console.warn('агенты:', w);
 let skills = loadSkills(BRAIN, AGENTS); // reloaded before every task and chat, so a new skill needs no restart
-for (const w of skills.problems) console.warn('skills:', w);
+for (const w of skills.problems) console.warn('навыки:', w);
 // the roster's editable fields are re-read too (a brief written by the lead's interview, or by hand, lands without a restart)
 function reloadRoster() {
   const r = loadRoster(BRAIN);
   for (const a of r.agents) { const cur = AGENTS.find(x => x.id === a.id); if (cur) Object.assign(cur, { name: a.name, role: a.role, does: a.does, tools: a.tools, brief: a.brief }); }
-  if (r.problems.join() !== roster.problems.join()) for (const w of r.problems) console.warn('agents:', w);
+  if (r.problems.join() !== roster.problems.join()) for (const w of r.problems) console.warn('агенты:', w);
   Object.assign(roster, { problems: r.problems, customised: r.customised, briefed: r.briefed, files: r.files });
 }
-const refreshSkills = () => { reloadRoster(); const s = loadSkills(BRAIN, AGENTS); if (s.problems.join() !== skills.problems.join()) for (const w of s.problems) console.warn('skills:', w); skills = s; return s; };
+const refreshSkills = () => { reloadRoster(); const s = loadSkills(BRAIN, AGENTS); if (s.problems.join() !== skills.problems.join()) for (const w of s.problems) console.warn('навыки:', w); skills = s; return s; };
 const leadOf = dept => AGENTS.find(a => a.department === dept && a.lead) || AGENTS.find(a => a.department === dept);
 const setupMap = () => Object.fromEntries(DEPT_KEYS.map(k => [k, onboard.isSetUp(AGENTS, skills, k)]));
 
@@ -87,7 +87,7 @@ if (process.env.ANTHROPIC_API_KEY) {
   try {
     const { default: Anthropic } = await import('@anthropic-ai/sdk');
     sdk = new Anthropic(); backend = 'anthropic-sdk';
-  } catch (e) { console.warn('SDK not installed (npm install @anthropic-ai/sdk) — using the Claude CLI:', e.message.split('\n')[0]); }
+  } catch (e) { console.warn('SDK не установлен (npm install @anthropic-ai/sdk) — используется Claude CLI:', e.message.split('\n')[0]); }
 }
 
 /* ---------- storage ---------- */
@@ -165,7 +165,7 @@ function parseJSON(text) {
 /* ---------- the brain: graph + context ---------- */
 let graph = { notes: 0, nodes: [], links: [], floor: [] };
 async function rebuildGraph() {
-  try { graph = await layoutGraph(BRAIN); } catch (e) { console.warn('brain graph failed:', e.message); }
+  try { graph = await layoutGraph(BRAIN); } catch (e) { console.warn('не удалось построить граф Базы знаний:', e.message); }
   return graph;
 }
 function vaultIndex() { // name → text (vault notes + live office notes)
@@ -212,7 +212,7 @@ const toolKeys = names => [...new Set(names.map(n => /^mcp__/.test(n) ? mcp.keyO
 async function route(dept, text) {
   const d = DEPTS[dept]; refreshSkills();
   const system = `You are the router for ${cfg.name}, a business whose departments are run by AI agents. ` +
-    'Pick the single best agent for the owner\'s request — an agent whose skills match the request is the right one — and return ONLY a JSON object — no prose, no code fences.';
+    'Pick the single best agent for the owner\'s request — an agent whose skills match the request is the right one. Write title, plan and why in Russian. Return ONLY a JSON object — no prose, no code fences.';
   const user = `Department: ${d.name}\nAgents (id · name · role · what they do):\n${rosterText(dept)}\n\nOwner's request: "${text}"\n\n` +
     'Return: {"agent":"<id from the list>","title":"<clean imperative task title, max 70 characters>","plan":["<step>","<step>","<step>"],"eta_minutes":<integer>,"why":"<one short sentence>","needs_ok":<true if doing this involves sending, posting, paying, deleting or changing anything outside this machine; false if it only reads and reports>}';
   const j = parseJSON(await ask(system, user, { maxTokens: 800, timeout: 150000, model: 'sonnet' })); // routing is a one-line JSON job: always Sonnet
@@ -225,6 +225,7 @@ async function route(dept, text) {
 function agentSystem(a, index, read, { extra = '', words = 260 } = {}) {
   const d = DEPTS[a.department];
   return `You are ${a.name}, ${a.role || 'an agent'}, in the ${d.name} department of ${cfg.name}. ${a.does}\n${agentBrief(a)}` + (extra ? `\n${extra}\n` : '') +
+    'Always write in natural Russian unless the owner explicitly asks for another language. ' +
     'Write the finished deliverable itself, not a description of what you would do. Plain text: a short heading, then short sections or bullets. ' +
     `At most ${words} words unless a skill or the owner\'s instructions set a different shape — those win. No preamble, no sign-off. Ground it in the company notes below; where a fact is missing, make a reasonable assumption and mark it (assumed). ` +
     'If you used a tool, say so in one line at the end ("Used: Gmail — searched the client thread").\n\n' +
@@ -278,7 +279,7 @@ async function runTeam(task, mode) {
   catch (e) { plan = { pieces: [{ agent: lead.id, title: task.title, text: task.text }], why: '', solo: true, error: e.message }; }
   task.team = { ...(task.team || {}), lead: lead.id, max, pieces: plan.pieces.map(p => ({ ...p, state: 'next' })), messages: [], why: plan.why, solo: plan.solo, plannedAt: Date.now() };
   persist(task);
-  console.log(`  ⚑ ${task.id} team of ${plan.pieces.length}: ${plan.pieces.map(p => p.agent).join(' + ')}${plan.why ? ' — ' + plan.why : ''}`);
+  console.log(`  ⚑ ${task.id} команда из ${plan.pieces.length}: ${plan.pieces.map(p => p.agent).join(' + ')}${plan.why ? ' — ' + plan.why : ''}`);
   // 2. the pieces — one Claude process per desk, at the same time (at most `max` in flight)
   const ids = task.team.pieces.map(p => p.agent);
   await teams.pool(task.team.pieces, max, async piece => {
@@ -295,7 +296,7 @@ async function runTeam(task, mode) {
       for (const m of messages) task.team.messages.push({ from: a.id, to: m.to === lead.id ? 'lead' : m.to, text: m.text, at: Date.now() });
     } catch (e) { Object.assign(piece, { result: 'Could not complete this piece: ' + e.message, error: true }); }
     piece.state = 'done'; piece.doneAt = Date.now(); persist(task);
-    console.log(`    ${piece.error ? '✗' : '✓'} ${a.name}: ${piece.title} (${(piece.result || '').length} chars${piece.tools?.length ? ', tools: ' + piece.tools.join(' ') : ''})`);
+    console.log(`    ${piece.error ? '✗' : '✓'} ${a.name}: ${piece.title} (${(piece.result || '').length} симв.${piece.tools?.length ? ', инструменты: ' + piece.tools.join(' ') : ''})`);
   });
   // 3. the final — the lead writes the deliverable from the pieces and the notes
   return runTeamLead(task, null, mode);
@@ -331,7 +332,7 @@ async function chat(agentId, text, history) {
   const read = relevantNotes(index, a.department, text, 3);
   const mine = load().filter(t => t.agent === agentId).slice(-6).map(t => `- [${t.state}] ${t.title}`).join('\n');
   const system = `You are ${a.name}, ${a.role || 'an agent'}, in the ${d.name} department of ${cfg.name}. ${a.does}\n${agentBrief(a)}` +
-    'You are talking to the owner. Answer as this agent, in first person, briefly (under 120 words unless asked for detail), plainly, no hype. ' +
+    'Always answer in natural Russian unless the owner explicitly asks for another language. You are talking to the owner. Answer as this agent, in first person, briefly (under 120 words unless asked for detail), plainly, no hype. ' +
     'Use the company notes; say when something is not in them. If the owner asks you to look something up, use your tools. Nothing outbound is sent without the owner\'s explicit say-so.\n\n' +
     `${mcp.promptText(a.tools)}\n\nCOMPANY NOTES\n${businessContext(index)}\n\nRELEVANT NOTES\n${contextText(index, read)}\n\nYOUR RECENT TASKS\n${mine || '—'}`;
   const convo = (history || []).slice(-8).map(m => `${m.who === 'user' ? 'Owner' : a.name}: ${m.text}`).join('\n');
@@ -344,7 +345,7 @@ const RSTATE = routines.loadState(DATA);
 let rlist = { routines: [], problems: [], path: routines.file(BRAIN) };
 function loadRoutines() { // re-read from disk every time: a routine written by Claude Code, or by hand, lands without a restart
   const r = routines.load(BRAIN, AGENTS);
-  if (r.problems.join() !== rlist.problems.join()) for (const w of r.problems) console.warn('routines:', w);
+  if (r.problems.join() !== rlist.problems.join()) for (const w of r.problems) console.warn('сценарии:', w);
   rlist = r;
   const { list, changed } = routines.withState(r.routines, RSTATE);
   if (changed) routines.saveState(DATA, RSTATE);
@@ -359,7 +360,7 @@ function fire(r, { due = Date.now(), late = false, by = 'routine' } = {}) { // t
   const task = { id: nid(), dept: r.dept, agent: r.agent, title: r.title, text: r.text, plan: r.plan || [], eta: 15, why: '', state: 'next', addedAt: Date.now(), by, routine: r.id, when: r.desc || describe(r.when), needsOk: r.needsOk, due, late, routineModel: r.model || undefined, routineEffort: r.effort || undefined, team: r.team && TEAMS.enabled ? { lead: r.agent, asked: 'routine' } : undefined };
   const list = load(); list.push(task); save(list);
   routines.advance(RSTATE, r, Date.now(), task.id, late); routines.saveState(DATA, RSTATE);
-  console.log(`⏱ ${task.id} → ${task.agent}: ${task.title}${late ? ' (LATE · was due ' + new Date(due).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ')' : ''}`);
+  console.log(`⏱ ${task.id} → ${task.agent}: ${task.title}${late ? ' (ОПОЗДАНИЕ · планировалось на ' + new Date(due).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) + ')' : ''}`);
   enqueue(() => runServerTask(task.id));
   return task;
 }
@@ -377,11 +378,11 @@ async function runServerTask(id, { feedback, approve } = {}) {
     Object.assign(task, { state: 'done', doneAt: Date.now(), result: 'Could not complete this task: ' + e.message, error: true });
   }
   list = load(); const i = list.findIndex(t => t.id === task.id); if (i >= 0) list[i] = task; save(list);
-  console.log(`${task.error ? '✗' : task.state === 'waiting' ? '⏸' : '✓'} ${task.id} ${task.error ? 'failed' : task.state === 'waiting' ? 'waiting for your OK' : 'done'} (${task.result.length} chars${task.tools?.length ? ', tools: ' + task.tools.join(' ') : ''}${task.note ? ', note: ' + task.note : ''})`);
+  console.log(`${task.error ? '✗' : task.state === 'waiting' ? '⏸' : '✓'} ${task.id} ${task.error ? 'ошибка' : task.state === 'waiting' ? 'ожидает одобрения' : 'готово'} (${task.result.length} симв.${task.tools?.length ? ', инструменты: ' + task.tools.join(' ') : ''}${task.note ? ', заметка: ' + task.note : ''})`);
   return task;
 }
 function tickRoutines() {
-  let list; try { list = loadRoutines(); } catch (e) { console.warn('routines:', e.message); return; }
+  let list; try { list = loadRoutines(); } catch (e) { console.warn('сценарии:', e.message); return; }
   for (const { routine, due, late } of routines.due(list, RSTATE)) fire(routine, { due, late });
   tickScheduled();
 }
@@ -390,7 +391,7 @@ function tickScheduled() { // V3.2.1: a task scheduled for a date fires on its m
   for (const t of list) {
     if (t.state !== 'scheduled' || !(t.dueAt <= now)) continue;
     t.state = 'next'; t.due = t.dueAt; t.late = now - t.dueAt > routines.LATE_AFTER; t.addedAt = now; changed = true;
-    console.log(`⏱ ${t.id} scheduled task fires → ${t.agent}: ${t.title}${t.late ? ' (LATE · was due ' + new Date(t.dueAt).toLocaleString([], { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : ''}`);
+    console.log(`⏱ запуск запланированной задачи ${t.id} → ${t.agent}: ${t.title}${t.late ? ' (ОПОЗДАНИЕ · планировалось на ' + new Date(t.dueAt).toLocaleString('ru-RU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) + ')' : ''}`);
     enqueue(() => runServerTask(t.id));
   }
   if (changed) save(list);
@@ -403,13 +404,13 @@ async function makeRoutine({ dept, text, when, agent, needsOk, model, effort }) 
   let taskText = String(text || '').trim(), w = when, parsed = null;
   if (!w) {
     parsed = parseWhen(taskText);
-    if (!parsed) return { error: 'No schedule in that sentence. Say when: "every weekday at 8am, …", "Mondays 9am, …", "every hour 9-5, …".', noSchedule: true };
-    if (parsed.needsDay) return { error: 'Which day? Say "every Monday …" or "Mon and Thu …".', needsDay: true };
-    if (parsed.needsTime) return { error: 'What time? Say "… at 8am" or "… at 17:30".', needsTime: true };
+    if (!parsed) return { error: 'В предложении нет расписания. Укажите время: «по будням в 8:00…», «по понедельникам в 9:00…», «каждый час с 9 до 17…».', noSchedule: true };
+    if (parsed.needsDay) return { error: 'В какой день? Например: «каждый понедельник…» или «по понедельникам и четвергам…».', needsDay: true };
+    if (parsed.needsTime) return { error: 'В какое время? Например: «…в 8:00» или «…в 17:30».', needsTime: true };
     w = parsed.when; taskText = parsed.text;
   }
-  if (!validWhen(w)) return { error: 'That schedule is not complete.' };
-  if (!taskText) return { error: 'What should happen? The sentence has a time but no task.' };
+  if (!validWhen(w)) return { error: 'Расписание заполнено не полностью.' };
+  if (!taskText) return { error: 'Что нужно сделать? В предложении есть время, но нет задачи.' };
   loadRoutines();
   const r = await route(dept, taskText);
   const a = agent && AGENTS.find(x => x.id === agent && x.department === dept) ? agent : r.agent;
@@ -417,33 +418,33 @@ async function makeRoutine({ dept, text, when, agent, needsOk, model, effort }) 
   if (v.problems.length) return { error: v.problems.join('; ') };
   rlist.routines.push(v.routine); routines.save(BRAIN, rlist.routines);
   const out = loadRoutines().find(x => x.id === v.routine.id);
-  console.log(`⏱ routine ${out.id} → ${out.agent}: ${out.title} (${out.desc} · next ${untilText(out.nextAt)}${out.needsOk ? ' · waits for the OK' : ''})`);
+  console.log(`⏱ сценарий ${out.id} → ${out.agent}: ${out.title} (${out.desc} · следующий ${untilText(out.nextAt)}${out.needsOk ? ' · ждёт одобрения' : ''})`);
   return { ok: true, routine: out, why: r.why, guessed: parsed?.guessed ? parsed.guessWord : null };
 }
 // B2: a routine said to an agent in chat. The lead routes it inside the department; a specialist takes it on.
 async function routinesChat(a, text) {
   const t = String(text).trim(), dept = a.department, allowed = routines.ALLOWED.includes(dept);
-  if (/^\s*(routines?|schedule|timetable|what(?:'s| is) (?:scheduled|on the (?:schedule|timetable)))\s*\??\s*$/i.test(t)) return { reply: allowed ? routines.listText(loadRoutines(), dept, AGENTS) : routines.refusal(dept) };
-  const cmd = /^\s*(pause|stop|resume|start|unpause|delete|remove|run)\b\s*(?:the\s+)?(.*?)\s*[.!]?$/i.exec(t);
+  if (/^\s*(routines?|schedule|timetable|what(?:'s| is) (?:scheduled|on the (?:schedule|timetable))|сценарии|расписание)\s*\??\s*$/i.test(t)) return { reply: allowed ? routines.listText(loadRoutines(), dept, AGENTS) : routines.refusal(dept) };
+  const cmd = /^\s*(pause|stop|resume|start|unpause|delete|remove|run|приостановить|остановить|возобновить|запустить|удалить)\b\s*(?:the\s+)?(.*?)\s*[.!]?$/i.exec(t);
   if (cmd && allowed && !parseWhen(t)) {
     const list = loadRoutines(); const words = cmd[2].replace(/\s+(routine|one)$/i, ''); const r = routines.matchRoutine(list, dept, words);
-    if (!r) return { reply: (list.some(x => x.dept === dept) ? 'Which one? ' : '') + routines.listText(list, dept, AGENTS) };
+    if (!r) return { reply: (list.some(x => x.dept === dept) ? 'Какой именно? ' : '') + routines.listText(list, dept, AGENTS) };
     const verb = cmd[1].toLowerCase();
-    if (verb === 'run') { const task = fire(r, { by: 'you' }); return { reply: `Running "${r.title}" now — ${r.agent === a.id ? 'I have it' : agentName(r.agent) + ' has it'}. It lands in the panel${r.needsOk ? ' and waits for your OK before anything is sent' : ''}.`, task }; }
-    if (/pause|stop/.test(verb)) { editRoutine(r.id, { paused: true }); return { reply: `Paused "${r.title}". It stays on the timetable; say "resume ${r.title.toLowerCase()}" to start it again.` }; }
-    if (/resume|start|unpause/.test(verb)) { const n = editRoutine(r.id, { paused: false }); return { reply: `"${r.title}" is back on — next ${untilText(n.nextAt)}.` }; }
-    if (/delete|remove/.test(verb)) { removeRoutine(r.id); return { reply: `Deleted "${r.title}". It is off the timetable.` }; }
+    if (/run|запустить/.test(verb)) { const task = fire(r, { by: 'you' }); return { reply: `Запускаю «${r.title}» сейчас — ${r.agent === a.id ? 'задача у меня' : 'задачу получил ' + agentName(r.agent)}. Она появится на панели${r.needsOk ? ' и будет ждать вашего одобрения перед отправкой' : ''}.`, task }; }
+    if (/pause|stop|приостановить|остановить/.test(verb)) { editRoutine(r.id, { paused: true }); return { reply: `Сценарий «${r.title}» приостановлен и остаётся в расписании.` }; }
+    if (/resume|start|unpause|возобновить/.test(verb)) { const n = editRoutine(r.id, { paused: false }); return { reply: `Сценарий «${r.title}» возобновлён — следующий запуск ${untilText(n.nextAt)}.` }; }
+    if (/delete|remove|удалить/.test(verb)) { removeRoutine(r.id); return { reply: `Сценарий «${r.title}» удалён из расписания.` }; }
   }
   const p = parseWhen(t);
   if (!p) return null;
   if (!allowed) return { reply: routines.refusal(dept) };
-  if (p.needsDay) return { reply: 'Which day? Say it again with the day: "every Monday at 9am, …".' };
-  if (p.needsTime) return { reply: `What time? Say it again with the time, e.g. "every weekday at 8am, ${p.text ? p.text.slice(0, 60) : '…'}".` };
-  if (!p.text) return { reply: 'I have the time but not the task. Say it again with what should happen.' };
+  if (p.needsDay) return { reply: 'В какой день? Повторите с днём: «каждый понедельник в 9:00, …».' };
+  if (p.needsTime) return { reply: `В какое время? Повторите со временем: «по будням в 8:00, ${p.text ? p.text.slice(0, 60) : '…'}».` };
+  if (!p.text) return { reply: 'Время указано, но самой задачи нет. Напишите, что должно произойти.' };
   const made = await makeRoutine({ dept, text: p.text, when: p.when, agent: a.lead ? undefined : a.id });
   if (made.error) return { reply: made.error };
-  const r = made.routine, who = r.agent === a.id ? 'I have it' : `${agentName(r.agent)} has it`;
-  return { reply: `Done. ${r.desc.charAt(0).toUpperCase() + r.desc.slice(1)}, ${who}.${made.guessed ? ` I took "${made.guessed}" as ${r.when.at}; say a time to change it.` : ''} ${r.needsOk ? 'Anything to send waits for your OK first.' : 'It only reads, so it will not wait for you.'} Next run ${untilText(r.nextAt)}. Say "routines" to see the list, "pause ${r.title.toLowerCase()}" to stop it.`, routine: r };
+  const r = made.routine, who = r.agent === a.id ? 'задача у меня' : `задачу получил ${agentName(r.agent)}`;
+  return { reply: `Готово. ${r.desc.charAt(0).toUpperCase() + r.desc.slice(1)}, ${who}.${made.guessed ? ` «${made.guessed}» принято за ${r.when.at}.` : ''} ${r.needsOk ? 'Перед отправкой результат дождётся вашего одобрения.' : 'Это только чтение, поэтому одобрение не потребуется.'} Следующий запуск ${untilText(r.nextAt)}. Напишите «сценарии», чтобы увидеть список.`, routine: r };
 }
 
 /* ---------- http ---------- */
@@ -451,7 +452,7 @@ const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'appli
 const body = req => new Promise((resolve, reject) => { let s = ''; req.on('data', d => { s += d; }); req.on('end', () => { try { resolve(s ? JSON.parse(s) : {}); } catch (e) { reject(e); } }); });
 
 await rebuildGraph();
-const discovering = mcp.discover().then(l => { console.log(`  connectors: ${l.filter(s => s.status === 'connected').length} connected of ${l.length} (claude mcp list)`); return l; });
+const discovering = mcp.discover().then(l => { console.log(`  подключения: активно ${l.filter(s => s.status === 'connected').length} из ${l.length} (claude mcp list)`); return l; });
 const agentsOut = () => { const setup = setupMap(); return AGENTS.map(a => ({ id: a.id, name: a.name, role: a.role, does: a.does, tools: a.tools, brief: a.brief || '', model: a.model || '', effort: a.effort || '', skills: skills.names(a), lessons: learn.count(BRAIN, a.id), department: a.department, lead: a.lead,
   interviewer: leadOf(a.department).id === a.id, setUp: setup[a.department] })); };
 const server = http.createServer(async (req, res) => {
@@ -474,7 +475,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === '/api/routines' && req.method === 'GET') return json(res, 200, routinesOut());
     if (url.pathname === '/api/routines' && req.method === 'POST') {
       const b = await body(req);
-      if (!DEPTS[b.dept] || b.dept === 'brain') return json(res, 400, { error: 'unknown department' });
+      if (!DEPTS[b.dept] || b.dept === 'brain') return json(res, 400, { error: 'неизвестный отдел' });
       if (!routines.ALLOWED.includes(b.dept)) return json(res, 400, { error: routines.refusal(b.dept), refused: true });
       const r = await makeRoutine({ dept: b.dept, text: b.text, when: b.when, agent: b.agent, needsOk: b.needsOk, model: b.model, effort: b.effort });
       return json(res, r.error ? 400 : 200, r);
@@ -482,9 +483,9 @@ const server = http.createServer(async (req, res) => {
     const rm = url.pathname.match(/^\/api\/routines\/([^/]+)(?:\/(run|pause|resume))?$/);
     if (rm) {
       const r = loadRoutines().find(x => x.id === rm[1]);
-      if (!r) return json(res, 404, { error: 'no such routine' });
+      if (!r) return json(res, 404, { error: 'сценарий не найден' });
       if (req.method === 'DELETE') { removeRoutine(r.id); return json(res, 200, { ok: true, routines: loadRoutines() }); }
-      if (req.method !== 'POST') return json(res, 405, { error: 'POST or DELETE' });
+      if (req.method !== 'POST') return json(res, 405, { error: 'допустимы POST или DELETE' });
       if (rm[2] === 'run') return json(res, 200, { ok: true, task: fire(r, { by: 'you' }), routines: loadRoutines() });
       if (rm[2] === 'pause' || rm[2] === 'resume') { editRoutine(r.id, { paused: rm[2] === 'pause' }); return json(res, 200, { ok: true, routines: loadRoutines() }); }
       const b = await body(req); const patch = {};
@@ -497,36 +498,36 @@ const server = http.createServer(async (req, res) => {
     }
     if (url.pathname === '/api/tasks' && req.method === 'POST') {
       const { dept, text, model, effort, team, at } = await body(req);
-      if (!DEPTS[dept] || dept === 'brain') return json(res, 400, { error: 'unknown department' });
-      if (!text || !String(text).trim()) return json(res, 400, { error: 'empty task' });
+      if (!DEPTS[dept] || dept === 'brain') return json(res, 400, { error: 'неизвестный отдел' });
+      if (!text || !String(text).trim()) return json(res, 400, { error: 'пустая задача' });
       const dueAt = at ? (typeof at === 'number' ? at : Date.parse(at)) : null; // V3.2.1: a task for a date
-      if (at && !(dueAt > 0)) return json(res, 400, { error: 'at must be a time (ms or ISO)' });
-      if (dueAt && dueAt < Date.now() - 60000) return json(res, 400, { error: 'that time has passed — pick one that is still ahead' });
+      if (at && !(dueAt > 0)) return json(res, 400, { error: 'поле at должно содержать время в миллисекундах или ISO' });
+      if (dueAt && dueAt < Date.now() - 60000) return json(res, 400, { error: 'это время уже прошло — выберите будущее время' });
       const r = await route(dept, String(text).trim());
       const asTeam = TEAMS.enabled && (team === true || teams.intent(text)); // V3.2 (16 Sep): TEAM in the bar, or "as a team" in the sentence → the lead owns it and splits it
       const task = { id: nid(), dept, agent: asTeam ? leadOf(dept).id : r.agent, title: r.title, text: String(text).trim(), plan: r.plan, eta: r.eta, why: asTeam ? `team — ${leadOf(dept).name} splits it across the desks` : r.why, state: 'next', addedAt: Date.now(), by: 'you', model: normModel(model) || undefined, effort: normEffort(effort) || undefined, // model/effort: set on this task (beats routine, agent, office)
         team: asTeam ? { lead: leadOf(dept).id, asked: team === true ? 'you' : 'text' } : undefined };
       if (dueAt) { task.state = 'scheduled'; task.dueAt = dueAt; task.needsOk = r.needsOk; } // waits for its minute; needsOk decides whether it then waits for the OK
       const list = load(); list.push(task); save(list);
-      console.log(`+ ${task.id} → ${task.agent}: ${task.title}${asTeam ? ' (team)' : ''}${dueAt ? ' · scheduled ' + untilText(dueAt) : ''}`);
+      console.log(`+ ${task.id} → ${task.agent}: ${task.title}${asTeam ? ' (команда)' : ''}${dueAt ? ' · запланировано ' + untilText(dueAt) : ''}`);
       return json(res, 200, task);
     }
     const m = url.pathname.match(/^\/api\/tasks\/([^/]+)(?:\/(run|revise|approve|reject))?$/);
     if (m && req.method === 'POST' && (m[2] === 'approve' || m[2] === 'reject')) { // D1: the owner's tick on a routine's draft
       const task = load().find(t => t.id === m[1]);
-      if (!task) return json(res, 404, { error: 'no such task' });
-      if (task.state !== 'waiting') return json(res, 400, { error: 'this task is not waiting for your OK' });
+      if (!task) return json(res, 404, { error: 'задача не найдена' });
+      if (task.state !== 'waiting') return json(res, 400, { error: 'эта задача не ожидает вашего одобрения' });
       const { feedback } = m[2] === 'reject' ? await body(req) : {};
       const note = String(feedback || '').trim();
-      console.log(`${m[2] === 'approve' ? '✅' : '↩'} ${task.id} ${m[2] === 'approve' ? 'approved — ' + agentName(task.agent) + ' is sending' : 'sent back: ' + note.slice(0, 80)}`);
+      console.log(`${m[2] === 'approve' ? '✅' : '↩'} ${task.id} ${m[2] === 'approve' ? 'одобрено — ' + agentName(task.agent) + ' отправляет' : 'возвращено: ' + note.slice(0, 80)}`);
       enqueue(() => runServerTask(task.id, m[2] === 'approve' ? { approve: true } : { feedback: note || 'Not this. Rework it.' }))
-        .then(t => { if (m[2] === 'reject' && note && t && !t.error) { const a = AGENTS.find(x => x.id === t.agent); return learn.classify(ask, a, t, note).then(v => { const r = learn.record(BRAIN, a, t, note, v); console.log(`  ↳ ${a.name} ${r.standing ? 'learned a rule' : 'noted a one-off'}: ${r.line.slice(0, 100)}`); }); } })
+        .then(t => { if (m[2] === 'reject' && note && t && !t.error) { const a = AGENTS.find(x => x.id === t.agent); return learn.classify(ask, a, t, note).then(v => { const r = learn.record(BRAIN, a, t, note, v); console.log(`  ↳ ${a.name} ${r.standing ? 'выучил правило' : 'записал разовое замечание'}: ${r.line.slice(0, 100)}`); }); } })
         .catch(e => console.warn('approval:', e.message));
       return json(res, 200, { ok: true, id: task.id, state: 'doing' });
     }
     if (m && req.method === 'POST' && (m[2] === 'run' || m[2] === 'revise')) {
       const list = load(); const task = list.find(t => t.id === m[1]);
-      if (!task) return json(res, 404, { error: 'no such task' });
+      if (!task) return json(res, 404, { error: 'задача не найдена' });
       const { feedback } = m[2] === 'revise' ? await body(req) : {};
       task.state = 'doing'; task.startedAt = Date.now(); save(list);
       try {
@@ -535,14 +536,14 @@ const server = http.createServer(async (req, res) => {
         task.note = writeNote(task);
         await rebuildGraph();
       } catch (e) {
-        Object.assign(task, { state: 'done', doneAt: Date.now(), result: 'Could not complete this task: ' + e.message, error: true });
+        Object.assign(task, { state: 'done', doneAt: Date.now(), result: 'Не удалось выполнить задачу: ' + e.message, error: true });
       }
       const l2 = load(); const i = l2.findIndex(t => t.id === task.id); if (i >= 0) l2[i] = task; save(l2);
-      console.log(`${task.error ? '✗' : '✓'} ${task.id} ${task.error ? 'failed' : 'done'} (${task.result.length} chars${task.tools?.length ? ', tools: ' + task.tools.join(' ') : ''}${task.note ? ', note: ' + task.note : ''})`);
+      console.log(`${task.error ? '✗' : '✓'} ${task.id} ${task.error ? 'ошибка' : 'готово'} (${task.result.length} симв.${task.tools?.length ? ', инструменты: ' + task.tools.join(' ') : ''}${task.note ? ', заметка: ' + task.note : ''})`);
       json(res, 200, task);
       if (feedback && !task.error) { // learn from the correction, after the reply is out the door
         const a = AGENTS.find(x => x.id === task.agent);
-        learn.classify(ask, a, task, feedback).then(v => { const r = learn.record(BRAIN, a, task, feedback, v); console.log(`  ↳ ${a.name} ${r.standing ? 'learned a rule' : 'noted a one-off'}: ${r.line.slice(0, 100)}`); })
+        learn.classify(ask, a, task, feedback).then(v => { const r = learn.record(BRAIN, a, task, feedback, v); console.log(`  ↳ ${a.name} ${r.standing ? 'выучил правило' : 'записал разовое замечание'}: ${r.line.slice(0, 100)}`); })
           .catch(e => console.warn('learn:', e.message));
       }
       return;
@@ -550,8 +551,8 @@ const server = http.createServer(async (req, res) => {
     if (m && req.method === 'DELETE') { save(load().filter(t => t.id !== m[1])); return json(res, 200, { ok: true }); }
     if (url.pathname === '/api/chat' && req.method === 'POST') {
       const { agent, text, history } = await body(req);
-      if (!text || !String(text).trim()) return json(res, 400, { error: 'empty message' });
-      const a = AGENTS.find(x => x.id === agent); if (!a) return json(res, 400, { error: 'unknown agent' });
+      if (!text || !String(text).trim()) return json(res, 400, { error: 'пустое сообщение' });
+      const a = AGENTS.find(x => x.id === agent); if (!a) return json(res, 400, { error: 'неизвестный агент' });
       if (!onboard.active(DATA, a.department)) { // V3.5: "every weekday at 8am, …" · "routines" · "pause …" · "run … now" — unless the lead is mid-interview
         const rc = await routinesChat(a, String(text).trim());
         if (rc) return json(res, 200, { reply: rc.reply, read: [], tools: [], interview: false, routine: rc.routine || null, routines: true });
@@ -560,25 +561,25 @@ const server = http.createServer(async (req, res) => {
         refreshSkills();
         const o = await onboard.handle(String(text).trim(), { dept: a.department, deptName: DEPTS[a.department].name, lead: a, agents: AGENTS.filter(x => x.department === a.department),
           connected: mcp.summary().servers?.filter(x => x.status === 'connected').map(x => x.name || x.key) || [], brainPath: BRAIN, dataDir: DATA, ask, business: cfg.name, afterWrite: refreshSkills });
-        if (o) { if (o.wrote) console.log(`★ ${a.name} set up ${DEPTS[a.department].name}: ${o.wrote.briefs.length} briefs${o.wrote.skill ? ', skill ' + o.wrote.skill.name : ''}`); return json(res, 200, { reply: o.reply, read: [], tools: [], interview: !o.wrote, setup: setupMap() }); }
+        if (o) { if (o.wrote) console.log(`★ ${a.name} настроил отдел «${DEPTS[a.department].name}»: брифов ${o.wrote.briefs.length}${o.wrote.skill ? ', навык ' + o.wrote.skill.name : ''}`); return json(res, 200, { reply: o.reply, read: [], tools: [], interview: !o.wrote, setup: setupMap() }); }
       }
       const r = await chat(agent, String(text).trim(), history);
       return json(res, 200, { ...r, interview: false });
     }
-    json(res, 404, { error: 'not found' });
+    json(res, 404, { error: 'не найдено' });
   } catch (e) { console.error(e); json(res, 500, { error: e.message }); }
 });
 server.listen(cfg.port, () => {
-  console.log(`Agents Office ${version} → http://localhost:${cfg.port}`);
-  console.log(`  business: ${cfg.name}   brain: ${BRAIN} (${graph.notes} notes, ${graph.links.length} links)   claude: ${backend} · ${modelName(cfg.model)}${cfg.effort ? ' · effort ' + cfg.effort : ''} by default (routing on Sonnet)`);
-  getUsage(true).then(u => console.log(u.source === 'claude' ? `  usage: session ${u.session?.percent ?? '—'}% · week ${u.week?.percent ?? '—'}% (your Claude plan, as Claude Code shows it)` : `  usage: Claude's gauge unavailable (${u.reason}) — showing the office's own count`)).catch(() => {});
-  console.log(`  tasks: ${FILE}   notes the agents write: ${NOTES_DIR}`);
+  console.log(`Офис агентов ${version} → http://localhost:${cfg.port}`);
+  console.log(`  компания: ${cfg.name}   база: ${BRAIN} (${graph.notes} заметок, ${graph.links.length} связей)   Claude: ${backend} · ${modelName(cfg.model)}${cfg.effort ? ' · усилие ' + cfg.effort : ''} по умолчанию (маршрутизация на Sonnet)`);
+  getUsage(true).then(u => console.log(u.source === 'claude' ? `  использование: сессия ${u.session?.percent ?? '—'}% · неделя ${u.week?.percent ?? '—'}% (тариф Claude по данным Claude Code)` : `  индикатор Claude недоступен (${u.reason}) — показан локальный подсчёт офиса`)).catch(() => {});
+  console.log(`  задачи: ${FILE}   заметки агентов: ${NOTES_DIR}`);
   const rl = loadRoutines(); const nx = rl.filter(r => !r.paused && r.nextAt).sort((a, b) => a.nextAt - b.nextAt)[0];
-  console.log(`  routines: ${rl.length} loaded${rl.some(r => r.paused) ? ' (' + rl.filter(r => r.paused).length + ' paused)' : ''}${nx ? ' · next ' + untilText(nx.nextAt) + ' ' + nx.title.toUpperCase() + ' (' + nx.agent + ')' : ''} · ${rlist.path}`);
+  console.log(`  сценарии: загружено ${rl.length}${rl.some(r => r.paused) ? ' (' + rl.filter(r => r.paused).length + ' на паузе)' : ''}${nx ? ' · следующий ' + untilText(nx.nextAt) + ' ' + nx.title.toUpperCase() + ' (' + nx.agent + ')' : ''} · ${rlist.path}`);
   setInterval(tickRoutines, 20000); tickRoutines(); // the clock: every 20 s; the first tick catches up anything missed while the office was off (once, marked LATE)
-  console.log(`  agents: 35 (${roster.customised} customised${roster.briefed ? ', ' + roster.briefed + ' briefed' : ''}${roster.files.length ? ' via ' + roster.files.join(' + ') : ''})   tools: ${backend === 'claude-cli' ? 'connected MCP servers' + (cfg.tools?.web === false ? '' : ' + web') + (mcp.browserOn() ? ' + the owner\'s Chrome (' + (mcp.browserState().installed ? 'extension paired' + (mcp.browserState().device ? ': ' + mcp.browserState().device : '') : 'extension NOT paired — run `claude --chrome` once') + ')' : '') : 'none on the API backend'}`);
-  console.log(`  teams: ${TEAMS.enabled ? 'on — TEAM in the bar or "as a team" in the sentence; the lead splits it across up to ' + TEAMS.max + ' desks' : 'off (teams.enabled in office.config.json)'}`);
+  console.log(`  агенты: 35 (${roster.customised} настроено${roster.briefed ? ', с брифами: ' + roster.briefed : ''}${roster.files.length ? ' · источники: ' + roster.files.join(' + ') : ''})   инструменты: ${backend === 'claude-cli' ? 'подключённые MCP-серверы' + (cfg.tools?.web === false ? '' : ' + веб') + (mcp.browserOn() ? ' + Chrome владельца (' + (mcp.browserState().installed ? 'расширение подключено' + (mcp.browserState().device ? ': ' + mcp.browserState().device : '') : 'расширение НЕ подключено — один раз выполните `claude --chrome`') + ')' : '') : 'недоступны при работе через API'}`);
+  console.log(`  команды: ${TEAMS.enabled ? 'включены — кнопка «КОМАНДА» или фраза «всей командой»; руководитель распределяет работу между местами, максимум ' + TEAMS.max : 'выключены (teams.enabled в office.config.json)'}`);
   const sk = skills.summary(); const setup = setupMap(); const notYet = DEPT_KEYS.filter(k => !setup[k]);
-  console.log(`  skills: ${sk.count} (${sk.shipped} shipped in skills/, ${sk.brain} in ${path.join(NOTES_DIR, 'skills')})${sk.problems.length ? '   ⚠ ' + sk.problems.length + ' problem' + (sk.problems.length > 1 ? 's' : '') + ' — see npm run check' : ''}`);
-  console.log(`  set up: ${notYet.length === DEPT_KEYS.length ? 'no department yet — open a lead\'s chat and say "set up"' : notYet.length ? DEPT_KEYS.length - notYet.length + ' of 6 departments (not yet: ' + notYet.map(k => DEPTS[k].name).join(', ') + ')' : 'all six departments'}   lessons: ${learn.dir(BRAIN)}`);
+  console.log(`  навыки: ${sk.count} (${sk.shipped} поставляется в skills/, ${sk.brain} находится в ${path.join(NOTES_DIR, 'skills')})${sk.problems.length ? '   ⚠ проблем: ' + sk.problems.length + ' — выполните npm run check' : ''}`);
+  console.log(`  настройка: ${notYet.length === DEPT_KEYS.length ? 'отделы ещё не настроены — откройте чат руководителя и напишите «настроить»' : notYet.length ? 'настроено ' + (DEPT_KEYS.length - notYet.length) + ' из 6 отделов (остались: ' + notYet.map(k => DEPTS[k].name).join(', ') + ')' : 'настроены все шесть отделов'}   уроки: ${learn.dir(BRAIN)}`);
 });

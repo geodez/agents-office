@@ -1,206 +1,150 @@
-# Teaching the agents how you work
+# Как научить агентов работать по-вашему
 
-Out of the box an agent knows three things: its one-line job description, your notes, and a
-house rule to hand over a finished deliverable. That gets you a competent generic answer. It does
-not get you *your* proposal, *your* client reply, *your* weekly report. For that you tell the
-agent how the work is done, and there are two ways to do it.
+Изначально агент знает описание своей роли, ваши заметки и правило передавать готовый результат. Этого достаточно для качественного, но типового ответа. Чтобы получать *ваши* предложения, письма и отчёты, опишите процесс одним из двух способов.
 
-| | A brief | A skill |
+| | Бриф | Навык |
 |---|---|---|
-| What it is | A few standing sentences on one agent | A folder: how one kind of work is done, plus templates and examples |
-| Lives in | `office.agents.local.json`, or `<brain>/Agents Office/agents.json` | `<brain>/Agents Office/skills/<name>/` |
-| Read when | Every task and chat turn for that agent | Every task and chat turn for the agents it is bound to |
-| Good for | Tone, red lines, who to escalate to, a preferred tool | A repeatable job with steps, a shape, rules and a template |
-| Size | Up to 2,000 characters | SKILL.md up to 6,000 characters, plus up to 8,000 in files beside it |
+| Что это | Несколько постоянных инструкций одному агенту | Папка с процессом, шаблонами и примерами |
+| Где хранится | `office.agents.local.json` или `<brain>/Agents Office/agents.json` | `<brain>/Agents Office/skills/<name>/` |
+| Когда читается | Перед каждой задачей и репликой агента | Перед каждой задачей и репликой привязанных агентов |
+| Для чего | Тон, ограничения, эскалация, предпочтительный инструмент | Повторяемая работа с этапами, структурой и правилами |
+| Размер | До 2 000 символов | `SKILL.md` до 6 000 символов плюс до 8 000 в соседних файлах |
 
-Use a brief when it fits in a paragraph. Use a skill when you would hand a new hire a document.
-Both can be written by hand or by Claude Code in this folder (see the end of this page).
+Используйте бриф, если всё помещается в абзац. Используйте навык, если новому сотруднику понадобился бы отдельный документ.
 
-## Briefs
+## Брифы
 
-Add a `brief` to any agent. It is read before every task and every chat turn.
+Добавьте поле `brief` нужному агенту. Оно перечитывается перед каждой задачей и репликой, поэтому перезапуск не нужен.
 
 ```json
 { "agents": [
   { "id": "piper",
-    "brief": "Every proposal has three options and we recommend the middle one. Prices ex GST, per month. Never discount: a cheaper option is a smaller scope. If a client asks for something the offer ladder does not have, quote it as (price to confirm) and flag it to me." }
+    "brief": "В каждом предложении три варианта; рекомендуй средний. Цены указывай без НДС, за месяц. Не давай скидку: дешёвый вариант означает меньший объём. Неизвестную цену пометь как «нужно подтвердить» и сообщи владельцу." }
 ] }
 ```
 
-A brief can be a list of lines instead of one string. Briefs are re-read before every task, so
-there is nothing to restart.
+Бриф может быть строкой или массивом строк.
 
-## Skills
+## Навыки
 
-A skill is a folder with a `SKILL.md` and anything the agent needs beside it. It is the same shape
-as a Claude Code skill, so if you have written one of those you already know this.
+Навык — папка с `SKILL.md` и нужными агенту материалами. Формат совпадает с навыками Claude Code.
 
-```
+```text
 <brain>/Agents Office/skills/
   proposal/
-    SKILL.md          ← what, when, the steps, the rules
-    template.md       ← the shape of the finished thing
-    example.md        ← one real one you were happy with
+    SKILL.md          что делать, когда применять, этапы и правила
+    template.md       структура готового результата
+    example.md        удачный реальный пример
 ```
-
-`SKILL.md` starts with a front-matter block, then the instructions in plain Markdown:
 
 ```markdown
 ---
 name: proposal
-description: How we write a client proposal
+description: Как мы готовим предложение клиенту
 agents: [piper]
 ---
-# Writing a proposal
+# Подготовка предложения
 
-Use this for any request that ends in a document a client says yes or no to.
+Используй навык для запроса, результат которого клиент принимает или отклоняет.
 
-## Before you write
-1. Find the client in `30-Customers`. If they are not there, say so at the top.
-2. Take packages and prices from `10-Business/offer-ladder.md`. Never invent a price.
+## Перед началом
+1. Найди клиента в `30-Customers`. Если записи нет, укажи это в начале.
+2. Бери пакеты и цены из `10-Business/offer-ladder.md`. Не придумывай цену.
 
-## The shape
-Follow `template.md` beside this file, section for section.
+## Структура
+Следуй `template.md` раздел за разделом.
 
-## Rules
-- Three options, always. Recommend the middle one.
-- One page. If it will not fit, cut the background, not the scope.
+## Правила
+- Всегда три варианта; рекомендуй средний.
+- Одна страница. Если текст не помещается, сокращай введение, а не объём работ.
 ```
 
-**Binding.** `agents: [piper]` binds it to one or more agents by id (the ids are in
-`office.agents.json`). `departments: [emails]` binds it to every agent in a department. Neither
-means every agent gets it, which is right for a house style and wrong for almost anything else.
-A skill whose agents or departments are all misspelt is skipped, and `npm run check` says so.
+**Привязка.** `agents: [piper]` связывает навык с агентами по `id` из `office.agents.json`. `departments: [emails]` связывает его со всем отделом. Если не указано ни то ни другое, навык получает каждый агент — это уместно для общего стиля и почти никогда для специального процесса. Ошибочные привязки показывает `npm run check`.
 
-**Files beside SKILL.md.** Agents have no file tools, so every readable file in the folder
-(`.md`, `.txt`, `.csv`, `.json`, `.yaml`, `.html`) is placed in front of the agent with the skill.
-Other files are listed by name only. Keep the folder to what the agent needs: a template, one or
-two examples, a checklist. Not the whole archive.
+**Соседние файлы.** У агентов нет файловых инструментов, поэтому содержимое `.md`, `.txt`, `.csv`, `.json`, `.yaml`, `.html` передаётся вместе с навыком. Другие файлы перечисляются по имени. Оставляйте только необходимое: шаблон, один-два примера и контрольный список.
 
-**Where.** Your skills go in `<brain>/Agents Office/skills/` (the brain is the folder named in
-`office.config.json`). They live with your notes, they are backed up with your notes, and
-`git pull` never touches them. The repo's own `skills/` folder holds three examples for the
-sample studio; a skill of the same name in your brain replaces the shipped one.
+**Расположение.** Пользовательские навыки находятся в `<brain>/Agents Office/skills/`, где `<brain>` задан в `office.config.json`. Они резервируются вместе с заметками и не затрагиваются `git pull`. В репозиторной папке `skills/` лежат примеры; одноимённый навык из Базы знаний имеет приоритет.
 
-**When it takes effect.** Immediately. Skills are re-read from disk before every task and chat
-turn. `npm run check` validates them; http://localhost:4520/api/skills shows what is loaded and
-who has what.
+**Активация.** Изменения действуют сразу, без перезапуска. `npm run check` проверяет навыки, а `http://localhost:4520/api/skills` показывает загрузку и привязки.
 
-## Let the lead interview you
+## Интервью с руководителем
 
-The fastest way to a first brief and skill is to have the department lead ask. Click a lead (the
-starred desk in each pod; where a department has no lead, its first agent does this), and say
-**set up**. Five questions, one at a time:
+Самый быстрый способ создать первый бриф и навык — открыть чат руководителя отдела и написать **«настроить»**. Он задаст по одному пять вопросов:
 
-1. What does this department do here, in your words? What comes in, what goes out, for whom?
-2. The one job you do most often, start to finish.
-3. What a good result looks like. Paste one you were happy with, or describe the sections.
-4. What must never happen. Red lines, things that always wait for you.
-5. Which tools and people are involved.
+1. Чем занимается отдел, что получает и что выдаёт?
+2. Как от начала до конца выполняется самая частая задача?
+3. Как выглядит хороший результат? Можно вставить пример или перечислить разделы.
+4. Чего нельзя допускать и что всегда требует одобрения?
+5. Какие инструменты и люди участвуют?
 
-Answer in plain words. "skip" skips a question, "done" finishes early, "cancel" throws the
-answers away. Nothing is written until the last answer. Then the lead writes:
+Команды «пропустить», «готово» и «отмена» управляют интервью. До последнего ответа ничего не записывается. Затем руководитель:
 
-- a **brief** for each agent on its team that the answers touched, into
-  `<brain>/Agents Office/agents.json`, merged with whatever is already there;
-- one **skill** for the job you described, into `<brain>/Agents Office/skills/<name>/`, with a
-  `template.md` if you gave it a shape;
+- объединяет брифы агентов с `<brain>/Agents Office/agents.json`;
+- создаёт один навык в `<brain>/Agents Office/skills/<name>/` и `template.md`, если была описана структура;
+- сообщает, что записано, куда и какой задачей это проверить.
 
-and replies with what it wrote, where, and one task to type to try it. Everything it writes is
-an ordinary file you can edit. Run it again any time; briefs are replaced, and an existing skill
-of the same name is kept beside the new one as a backup. A lead whose department has nothing of
-yours yet says so in its greeting and offers the interview.
+Все созданные файлы можно редактировать. При повторном интервью брифы заменяются, а прежний одноимённый `SKILL.md` сохраняется рядом как резервная копия.
 
-## They learn from your corrections
+## Обучение на исправлениях
 
-When you send a deliverable back with `revise: …` in the chat, the agent revises it, and the
-correction is written to `<brain>/Agents Office/feedback/<agent-id>.md`. Claude sorts each one:
+Верните результат агенту командой `доработай: …`. Замечание сохранится в `<brain>/Agents Office/feedback/<agent>.md` как:
 
-- a **one-off**: about that task, that client, that draft ("add the booking integration");
-- a **standing rule**: something you will want every time ("too long, proposals are one page"
-  becomes *Keep every proposal to one page*).
+- разовое уточнение для текущей задачи;
+- постоянное правило для будущих задач.
 
-Standing rules are read by that agent before every task and chat turn, newest last, the most
-recent fifteen. The file is plain Markdown with two sections, "Standing rules" and "One-offs",
-one line each. It is yours: reword a rule, delete a line to unlearn it, move a one-off up to
-promote it. http://localhost:4520/api/lessons shows what every agent has learned.
+Постоянные правила читаются перед каждой задачей и репликой; используются последние пятнадцать. Файл — обычный Markdown с разделами `Standing rules` и `One-offs`. Правило можно переформулировать, удалить или перенести между разделами. Если замечание превратилось в полноценный процесс, включите его в навык.
 
-Lessons are for preferences. When a rule turns into a process with steps and a shape, it
-belongs in a skill: open Claude Code in this folder and say "fold the Proposals agent's lessons
-into the proposal skill".
+## Что видит агент
 
-## What the agent sees
+Инструкция к задаче собирается в таком порядке:
 
-For a task, the agent's instructions are assembled in this order:
+1. Имя, роль и обязанности агента.
+2. Его бриф.
+3. Полный текст всех привязанных навыков и соседних файлов.
+4. Постоянные правила из исправлений.
+5. Доступные инструменты.
+6. `CLAUDE.md`, `index.md`, `business-model.md` и `voice.md` из Базы знаний, если они есть.
+7. Выбранные для задачи заметки.
 
-1. Who it is: name, role, what it does.
-2. Its brief, if it has one.
-3. Every skill bound to it, in full, with the files beside each one.
-4. Its standing rules from your corrections.
-5. The tools it may call.
-6. Your brain's `CLAUDE.md`, `index.md`, `business-model.md` and `voice.md`, if present.
-7. The notes it picked for this task.
+Навык или бриф заменяет стандартное ограничение формата ответа. В конце результата указывается использованный навык, а в метаданных сохранённой заметки записывается `skills:`. Маршрутизатор также видит названия навыков, поэтому запрос про предложение попадёт агенту, владеющему навыком предложения.
 
-A skill or a brief overrides the default shape (short, under 260 words). The deliverable ends
-with a line naming the skill it followed, and the note saved in your brain records it in its
-front matter, so you can see later which work was done to which skill.
+## Как написать хороший навык
 
-The router also sees each agent's skill names, so a task that reads "draft the proposal for
-Harbourside" lands on the agent who owns the proposal skill.
+- **Укажите условие применения.** Первая строка после заголовка должна прямо говорить, для каких запросов нужен навык.
+- **Сначала этапы, затем структура и правила.** Шаблон полезнее длинного описания шаблона.
+- **Ссылайтесь на заметки по имени.** «Цены из `10-Business/offer-ladder.md`» лучше, чем «используй наши цены».
+- **Добавьте один хороший пример.** Он полезнее страницы прилагательных.
+- **Делайте запреты короткими и абсолютными:** «Без скидок», «Ничего не отправлять без владельца».
+- **Один вид работы — один навык.** Предложение, ответ клиенту и недельный отчёт должны быть разными навыками.
 
-## Writing a good one
+## Как превратить существующие материалы в навык
 
-- **Say when.** The first line after the heading is the trigger: "Use this for any request that
-  ends in a document a client says yes or no to." The agent matches tasks to skills by this.
-- **Steps, then shape, then rules.** What to read first, what the finished thing looks like, what
-  is never allowed. A template file beats a description of a template.
-- **Point at notes by name.** "Prices come from `10-Business/offer-ladder.md`" makes the agent go
-  and read it. "Use our pricing" does not.
-- **One real example.** An `example.md` of one you were happy with does more than a page of
-  adjectives.
-- **Keep the red lines short and absolute.** "No discounts." "Nothing outbound without the owner."
-- **One skill per kind of work.** A proposal skill, a client reply skill, a weekly report skill.
-  Not one giant "sales" skill.
+Передайте Claude Code регламент, письмо, отчёт, шаблон или контрольный список:
 
-## Turning what you already have into a skill
-
-Most businesses already have the material: an SOP in a Word doc, an email you keep copying, a
-report you built last quarter, a checklist on the wall. The fastest route is to give that to
-Claude Code in this folder and let it write the skill.
-
-```
+```text
 claude
-> Here is the proposal I sent Harbourside and was happy with (paste, or point at the file).
-  Turn it into a skill for the Proposals agent: the shape as a template, the rules I follow,
-  and keep this one as the example.
+> Вот предложение, которое я отправил клиенту. Создай навык для агента ПРЕДЛОЖЕНИЯ:
+  вынеси структуру в шаблон, сформулируй мои правила и сохрани документ как пример.
 
-> Our client-reply rules are in ~/Documents/support-sop.docx. Make it a skill for the whole
-  Emails department.
+> Правила ответов клиентам находятся в ~/Documents/support-sop.docx.
+  Создай навык для всего отдела Почты.
 
-> Every Monday I want a one-page ops report: last week's deliveries, anything late, this
-  week's risks. Make a skill for Internal Reporting that produces exactly that.
+> Каждый понедельник нужен одностраничный операционный отчёт: результаты прошлой недели,
+  просрочки и риски текущей. Создай навык для ВНУТРЕННЕЙ ОТЧЁТНОСТИ.
 ```
 
-Claude reads `CLAUDE.md`, asks what it does not know, writes the folder into your brain's
-`Agents Office/skills/`, binds it to the right agent, and runs `npm run check`. Then give the
-agent the task and read the result. Send it back with `revise: …` from the chat and, when the
-correction is one you will want every time, fold it into the skill.
+Claude прочитает `CLAUDE.md`, уточнит недостающее, запишет навык в Базу знаний, привяжет его и выполнит `npm run check`.
 
-## Checking it worked
+## Проверка
 
-- `npm run check` lists every skill, who it is bound to, and every problem in plain sentences.
-- `npm start` prints the count at boot and which departments are set up;
-  http://localhost:4520/api/skills shows the detail, `/api/lessons` the corrections.
-- Give the agent a task the skill covers. The deliverable ends with `Skill: <name>`.
-- Open the saved note in `<brain>/Agents Office/`. Its front matter has `skills:`.
+- `npm run check` перечисляет навыки, привязки и проблемы.
+- `npm start` сообщает количество навыков; `/api/skills` показывает детали, `/api/lessons` — исправления.
+- Дайте агенту подходящую задачу: результат должен завершаться строкой `Навык: <name>`.
+- В метаданных сохранённой заметки должно появиться поле `skills:`.
 
-## Limits and rules
+## Ограничения и правила
 
-- `SKILL.md` over 6,000 characters is trimmed; files over 4,000 characters each or 8,000 in total
-  per skill are trimmed or listed by name. Long material belongs in your notes, where the agent
-  reads it when the task calls for it.
-- Skills are instructions, not tools. An agent with a Gmail skill still needs Gmail connected
-  in Claude Code and allowed in `office.config.json`.
-- Skills cannot add agents, change departments or grant tools. They say how, not who.
-- A skill does not override the standing rule: read freely; send, post, pay, delete or change
-  anything outside this machine only when the task explicitly asks for that exact action.
+- Тело `SKILL.md` длиннее 6 000 символов обрезается; соседний файл — после 4 000, все файлы навыка — после 8 000 символов.
+- Навыки — инструкции, а не инструменты. Для навыка Gmail всё равно требуется подключённый и разрешённый Gmail.
+- Навык не может добавлять агентов, менять отделы или выдавать подключения. Он определяет **как**, а не **кто**.
+- Навык не отменяет главное правило: читать можно свободно; отправлять, публиковать, платить, удалять или менять внешние данные можно только по прямому указанию в задаче владельца.

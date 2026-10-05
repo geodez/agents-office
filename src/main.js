@@ -253,6 +253,19 @@ for (const a of AGENTS) {
   };
 }
 
+// Русская демонстрационная копия. В рабочем режиме эти поля заменяются данными реального реестра.
+for (const r of Object.values(R)) {
+  r.v1 = r.v1 || {};
+  r.v1.role = r.a.lead ? 'Руководитель отдела' : 'ИИ-специалист';
+  r.v1.tagline = r.a.lead ? `Координирует отдел «${DEPTS[r.a.dept].name}» и собирает итоговые результаты.` : `Выполняет задачи по своему направлению в отделе «${DEPTS[r.a.dept].name}».`;
+  r.v1.greeting = `Здравствуйте! Я — ${r.a.name}. Поставьте задачу на панели справа или задайте вопрос здесь.`;
+  r.v1.chips = ['Над чем ты работаешь?', 'Что ты умеешь?', 'Какими инструментами ты можешь пользоваться?'];
+  r.v1.tasks = [`Выполняет текущую задачу отдела «${DEPTS[r.a.dept].name}»`, 'Проверяет результат перед передачей', 'Обновляет рабочие материалы'];
+  r.v1.stats = [['Задач сегодня', () => 3 + Math.floor(Math.random() * 8)], ['В работе', '1'], ['Качество', '98%'], ['Статус', 'В норме']];
+  r.v1.chartLbl = 'Активность за последние 7 дней';
+  r.v1.fallback = ['Принято. Опишите задачу подробнее, и я начну работу.'];
+}
+
 /* CONNECTORS — per-dept dock of MCP logos with back-and-forth traffic (AJ's spec, 2 Aug rev 2)
    V3.1: served, the list is the user's REAL MCP servers (GET /api/mcp) — the strip waits for it.
    Opened as a file the demo list plays at once. `mcp` is a thin proxy so the rest of the office
@@ -323,28 +336,28 @@ const kv = id => KPIS.find(k => k.id === id).val;
 let brainNotes = brain.state.notes;
 const BB_ROWS = profileRows() || {
   emails: [
-    ['EMAILS SENT', () => STATS.emailsSent],
-    ['REPLIES DRAFTED', () => STATS.drafts]],
+    ['ПИСЕМ ОТПРАВЛЕНО', () => STATS.emailsSent],
+    ['ОТВЕТОВ ПОДГОТОВЛЕНО', () => STATS.drafts]],
   delivery: [
-    ['REPORTS SENT', () => STATS.reports],
-    ['ON TRACK', () => STATS.onTrack + ' / ' + STATS.projects]],
+    ['ОТЧЁТОВ ОТПРАВЛЕНО', () => STATS.reports],
+    ['ПО ПЛАНУ', () => STATS.onTrack + ' / ' + STATS.projects]],
   sales: [
-    ['CALLS S·A·J', () => STATS.spencer + '·' + STATS.arwin + '·' + STATS.jack],
-    ['NEW MANAGERS', () => STATS.managers],
-    ['AUTO-ONBOARDED', () => STATS.autoOnb]],
+    ['ЗВОНКИ S·A·J', () => STATS.spencer + '·' + STATS.arwin + '·' + STATS.jack],
+    ['НОВЫЕ МЕНЕДЖЕРЫ', () => STATS.managers],
+    ['АВТООНБОРДИНГ', () => STATS.autoOnb]],
   marketing: [
-    ['NEW INSIGHTS', () => STATS.insMkt],
-    ['COST PER USER', () => '$' + Math.round(STATS.cpa)]],
+    ['НОВЫЕ ИНСАЙТЫ', () => STATS.insMkt],
+    ['СТОИМОСТЬ КЛИЕНТА', () => '$' + Math.round(STATS.cpa)]],
   ops: [
-    ['PROPOSALS MADE', () => Math.round(kv('proposals'))],
-    ['NEW INSIGHTS', () => STATS.insOps]],
+    ['ПРЕДЛОЖЕНИЙ СОЗДАНО', () => Math.round(kv('proposals'))],
+    ['НОВЫЕ ИНСАЙТЫ', () => STATS.insOps]],
   fin: [
-    ['INVOICES ISSUED', () => Math.round(kv('invoices'))],
-    ['BILLS PAID', () => STATS.billsPaid]],
+    ['СЧЕТОВ ВЫСТАВЛЕНО', () => Math.round(kv('invoices'))],
+    ['СЧЕТОВ ОПЛАЧЕНО', () => STATS.billsPaid]],
   brain: [
-    ['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]],
+    ['ЗАМЕТОК В ИНДЕКСЕ', () => brainNotes.toLocaleString('ru-RU')]],
 };
-if (PROFILE && !BB_ROWS.brain) BB_ROWS.brain = [['NOTES INDEXED', () => brainNotes.toLocaleString('en-NZ')]];
+if (PROFILE && !BB_ROWS.brain) BB_ROWS.brain = [['ЗАМЕТОК В ИНДЕКСЕ', () => brainNotes.toLocaleString('ru-RU')]];
 for (const k of [...DEPT_KEYS, 'brain']) {
   const dept = DEPTS[k];
   const n = AGENTS.filter(a => a.dept === k).length;
@@ -352,11 +365,11 @@ for (const k of [...DEPT_KEYS, 'brain']) {
   b.className = 'badge';
   b.innerHTML = `
     <div class="b-name"><span class="dot" style="background:${dept.chip}"></span>${dept.short}<span class="live"></span></div>
-    <div class="b-count">${k === 'brain' ? '<span class="b-num">∞</span><span class="b-lab">KNOWLEDGE</span>' : `<span class="b-num">${n}</span><span class="b-lab">AGENTS</span>`}</div>
+    <div class="b-count">${k === 'brain' ? '<span class="b-num">∞</span><span class="b-lab">ЗНАНИЯ</span>' : `<span class="b-num">${n}</span><span class="b-lab">АГЕНТОВ</span>`}</div>
     <div class="b-metrics">${BB_ROWS[k].map((row, i) => `
       <div class="m-row"><span class="m-lab">${row[0]}</span><span class="m-val" data-m="${k}-${i}">${row[1]()}</span></div>`).join('')}
     </div>
-    <div class="b-appr" style="display:none">⚠ <span class="ap-n">1</span> WAITING APPROVAL</div>`;
+    <div class="b-appr" style="display:none">⚠ <span class="ap-n">1</span> ЖДУТ ОДОБРЕНИЯ</div>`;
   b.addEventListener('click', (e) => {
     if (e.target.closest('.b-appr')) { zoomToApproval(k); e.stopPropagation(); }
     else if (e.target.closest('.b-tasks') && tasks) { tasks.openFor(k); e.stopPropagation(); }
@@ -364,9 +377,9 @@ for (const k of [...DEPT_KEYS, 'brain']) {
   });
   if (k === 'brain') { // V3.6: a small tag names the etched floor and opens the graph (the big card stays retired)
     b.className = 'badge brainTag';
-    b.innerHTML = `<div class="b-name"><span class="dot" style="background:${dept.chip}"></span>THE BRAIN<b>${brain.state.notes.toLocaleString('en-NZ')}</b>NOTES</div>`;
+    b.innerHTML = `<div class="b-name"><span class="dot" style="background:${dept.chip}"></span>БАЗА ЗНАНИЙ<b>${brain.state.notes.toLocaleString('ru-RU')}</b>ЗАМЕТОК</div>`;
     b.onclick = (e) => { e.stopPropagation(); brain.open(); };
-    b.title = 'open the Brain (G)';
+    b.title = 'открыть базу знаний (G)';
   }
   hud.appendChild(b);
   deptRT[k].badge = b;
@@ -598,7 +611,7 @@ function ensureChat(id) {
   const v = R[id].v1;
   chatHist[id] = [
     { who: 'agent', text: v.greeting },
-    { who: 'work', i: '⏺', text: 'session attached — live work stream below' },
+    { who: 'work', i: '⏺', text: 'сеанс подключён — ниже отображается ход работы' },
   ];
   if (FILE_GEN[id] && !(tasks && tasks.isLive())) chatHist[id].push({ who: 'file', ...FILE_GEN[id]() }); // demo-only sample file; a live office shows real deliverables
 }
@@ -621,12 +634,12 @@ function renderChat(id) {
       </div>`;
     if (m.who === 'appr') return `
       <div class="m-appr" data-i="${i}">
-        <div class="a-who">needs your approval</div>
+        <div class="a-who">требуется ваше одобрение</div>
         <div class="a-ask">${esc(m.text)}</div>
         ${m.mock ? `<div class="a-mock">${m.mock}</div>` : ''}
         ${m.pending
-          ? '<div class="a-btns"><button class="a-yes">APPROVE</button><button class="a-no">REJECT</button></div>'
-          : `<div class="a-done">${m.approved ? '✓ Approved' : '✗ Rejected'} by AJ</div>`}
+          ? '<div class="a-btns"><button class="a-yes">ОДОБРИТЬ</button><button class="a-no">ОТКЛОНИТЬ</button></div>'
+          : `<div class="a-done">${m.approved ? '✓ Одобрено' : '✗ Отклонено'}</div>`}
       </div>`;
     return '';
   }).join('');
@@ -640,9 +653,9 @@ function renderChat(id) {
 }
 function renderActivity(id) {
   const r = R[id], v = r.v1;
-  const task = rnd(v.tasks || ['Working through the queue'])
+  const task = rnd(v.tasks || ['Разбирает очередь'])
     .replace('{co}', rnd(P.co)).replace('{person}', person()).replace('{count}', ri(3, 9));
-  document.getElementById('mNow').innerHTML = `NOW &nbsp;<b>${esc(task)}</b>`;
+  document.getElementById('mNow').innerHTML = `СЕЙЧАС &nbsp;<b>${esc(task)}</b>`;
   document.getElementById('mStats').innerHTML = (v.stats || []).map(([l, val]) => `
     <div class="st"><div class="st-l">${esc(l)}</div><div class="st-v">${esc(String(typeof val === 'function' ? val() : val))}</div></div>`).join('');
   const chip = DEPTS[r.a.dept].chip;
@@ -729,11 +742,11 @@ function buildDeptRail(k) {
   rh.classList.remove('show');
   rh.innerHTML = `
     <div class="b-name"><span class="dot" style="background:${dept.chip}"></span>${dept.name}<span class="live"></span></div>
-    <div class="b-count"><span class="b-num">${n}</span><span class="b-lab">AGENTS</span></div>
+    <div class="b-count"><span class="b-num">${n}</span><span class="b-lab">АГЕНТОВ</span></div>
     <div class="b-metrics">${BB_ROWS[k].map((row, i) => `
       <div class="m-row"><span class="m-lab">${row[0]}</span><span class="m-val" data-rm="${k}-${i}">${row[1]()}</span></div>`).join('')}</div>
     ${tasks ? tasks.rowHTML(k) : ''}
-    <div class="b-appr" style="display:${stuckIn(k).length ? 'flex' : 'none'}">⚠ <span class="ap-n">${stuckIn(k).length}</span> WAITING APPROVAL</div>`;
+    <div class="b-appr" style="display:${stuckIn(k).length ? 'flex' : 'none'}">⚠ <span class="ap-n">${stuckIn(k).length}</span> ЖДУТ ОДОБРЕНИЯ</div>`;
   const trow = rh.querySelector('.b-tasks');
   if (trow) trow.addEventListener('click', () => tasks.toggle());
   rh.querySelector('.b-appr').addEventListener('click', () => {
@@ -831,31 +844,31 @@ function sendChat(text) {
   const low = text.toLowerCase();
   setTimeout(() => {
     if (tasks && tasks.pendingReject(id)) { tasks.rejectLive(id, text); return; } // V3.5: the line after REJECT is the note the agent reworks with
-    if (r.state === 'stuck' && /\b(approve|reject)\b/.test(low)) {
-      resolveApproval(id, /approve/.test(low));
+    if (r.state === 'stuck' && /\b(approve|reject|одобрить|отклонить)\b/.test(low)) {
+      resolveApproval(id, /approve|одобрить/.test(low));
       return;
     }
-    const rv = tasks && tasks.isLive() && text.match(/^\s*revise\s*[:\-–]\s*(.+)$/i); // LIVE: "revise: …" re-runs the last deliverable
-    if (rv && tasks.revise(id, rv[1].trim())) { chatPush(id, { who: 'agent', text: 'On it — revising now. It will land here when it is ready.' }); return; }
+    const rv = tasks && tasks.isLive() && text.match(/^\s*(?:revise|исправь|доработай)\s*[:\-–]\s*(.+)$/i);
+    if (rv && tasks.revise(id, rv[1].trim())) { chatPush(id, { who: 'agent', text: 'Принято — дорабатываю. Результат появится здесь, когда будет готов.' }); return; }
     const tr = tasks && tasks.handleChat(id, text); // "add task: …" / "what's on the board"
     if (tr) { chatPush(id, { who: 'agent', text: tr }); return; }
     if (tasks && tasks.isLive()) { // LIVE: a real conversation with the agent, grounded in the brain
-      chatPush(id, { who: 'work', i: '…', text: `${r.a.name} is thinking` });
+      chatPush(id, { who: 'work', i: '…', text: `${r.a.name} думает` });
       fetch('/api/chat', { method: 'POST', headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ agent: id, text, history: chatHist[id].filter(m => m.who === 'user' || m.who === 'agent').slice(-8) }) })
         .then(async res => { if (!res.ok) throw new Error((await res.json()).error || res.statusText); return res.json(); })
         .then(j => {
-          const h = chatHist[id]; const k = h.findIndex(m => m.who === 'work' && m.text === `${r.a.name} is thinking`); if (k >= 0) h.splice(k, 1);
+          const h = chatHist[id]; const k = h.findIndex(m => m.who === 'work' && m.text === `${r.a.name} думает`); if (k >= 0) h.splice(k, 1);
           chatPush(id, { who: 'agent', text: j.reply });
           if (j.routines && tasks.refresh) tasks.refresh(); // a routine was set, paused, run or deleted in chat
           if (j.read) for (const n of j.read.slice(0, 2)) brain.readNote(id, n);
           if (j.tools && j.tools.length) mcp.onToolsUsed(id, j.tools);
         })
-        .catch(e => chatPush(id, { who: 'agent', text: `I couldn't reach Claude (${e.message}).` }));
+        .catch(e => chatPush(id, { who: 'agent', text: `Не удалось связаться с Claude (${e.message}).` }));
       return;
     }
     const hit = (r.v1.chat || []).find(c => c.k.some(k => low.includes(k)));
-    const reply = hit ? rnd(hit.r) : rnd(r.v1.fallback || ['On it.']);
+    const reply = hit ? rnd(hit.r) : rnd(r.v1.fallback || ['Принято.']);
     chatPush(id, { who: 'agent', text: reply });
   }, 450 + Math.random() * 500);
 }
@@ -868,7 +881,7 @@ document.getElementById('mIn').addEventListener('keydown', (e) => {
 function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 function ago(ts) {
   const m = Math.round((Date.now() - ts) / 60000);
-  return m < 1 ? 'now' : m < 60 ? m + 'm ago' : Math.round(m / 60) + 'h ago';
+  return m < 1 ? 'сейчас' : m < 60 ? m + ' мин назад' : Math.round(m / 60) + ' ч назад';
 }
 
 /* ---------- approval mockups — show AJ exactly what he's approving ---------- */
@@ -877,20 +890,20 @@ function mockupFor(id) {
   const pm = profileMockup(R[id].a.dept, R[id].ask, R[id].a.name, esc); if (pm) return pm; // INDUSTRY PROFILE: the trade's own document, or a cover sheet for this ask
   switch (id) {
     case 'apay': return `<div class="mk mk-doc">
-      <div class="d-brand">INVOICE AUDIT — #218</div>
-      <div class="d-title">Design contractor</div>
-      <div class="d-line"><span>Invoiced</span><b>14 hrs × $110 = $1,540</b></div>
-      <div class="d-line"><span>Contract rate</span><b>$85/hr (signed 12 Mar)</b></div>
-      <div class="d-line"><span>Variance</span><b>+$350 ⚠</b></div>
-      <div class="d-line"><span>Scope</span><b>matches the brief ✓</b></div>
-      <div class="d-p">Hours and scope check out — only the rate is off, and there's no signed variation covering it. Recommend holding payment and querying the rate before it's paid.</div></div>`;
+      <div class="d-brand">ПРОВЕРКА СЧЁТА — №218</div>
+      <div class="d-title">Подрядчик по дизайну</div>
+      <div class="d-line"><span>В счёте</span><b>14 ч × $110 = $1 540</b></div>
+      <div class="d-line"><span>Ставка по договору</span><b>$85/ч (подписан 12 марта)</b></div>
+      <div class="d-line"><span>Расхождение</span><b>+$350 ⚠</b></div>
+      <div class="d-line"><span>Объём</span><b>соответствует брифу ✓</b></div>
+      <div class="d-p">Часы и объём работ совпадают, но ставка отличается, а подписанного изменения нет. Рекомендуется приостановить оплату и уточнить ставку.</div></div>`;
     case 'piper': return `<div class="mk mk-doc">
-      <div class="d-brand">AGENTS OFFICE — PROPOSAL</div>
+      <div class="d-brand">ОФИС АГЕНТОВ — ПРЕДЛОЖЕНИЕ</div>
       <div class="d-title">Ridgeline Property Group</div>
-      <div class="d-line"><span>Seats</span><b>12</b></div>
-      <div class="d-line"><span>Plan</span><b>Growth</b></div>
-      <div class="d-line"><span>Price</span><b>$1,080/mo · 12-mo lock</b></div>
-      <div class="d-p">Proof point: Auckland roofing co — 0 → 40 tracked calls/week in 14 days. Sign-online link included.</div></div>`;
+      <div class="d-line"><span>Мест</span><b>12</b></div>
+      <div class="d-line"><span>Тариф</span><b>Growth</b></div>
+      <div class="d-line"><span>Цена</span><b>$1 080/мес · фиксация на 12 месяцев</b></div>
+      <div class="d-p">Результат клиента: от 0 до 40 отслеживаемых звонков в неделю за 14 дней. Ссылка для онлайн-подписания включена.</div></div>`;
     case 'bill': return `<div class="mk mk-doc">
       <div class="d-brand">REFUND VERIFICATION</div>
       <div class="d-title">Harbour City Roofing — $680</div>
@@ -900,37 +913,37 @@ function mockupFor(id) {
       <div class="d-p">Legit case. Above my $500 limit — releases the moment you approve.</div></div>`;
     case 'iggy': return `<div class="mk-phone">
       <div class="ph-handle"></div>
-      <div class="ph-hook">“calls before 10am are a trap”</div>
-      <div class="ph-sub">connect rates nearly double 10:00–11:30am — across 40,000 dials</div>
-      <div class="ph-ui"><span>♥ 2.4k</span><span>💬 118</span><span>↗ share</span></div></div>`;
+      <div class="ph-hook">«звонки до 10 утра — ловушка»</div>
+      <div class="ph-sub">с 10:00 до 11:30 дозваниваются почти вдвое чаще — по данным 40 000 звонков</div>
+      <div class="ph-ui"><span>♥ 2,4 тыс.</span><span>💬 118</span><span>↗ поделиться</span></div></div>`;
     case 'ada': return `<div class="mk mk-ad">
-      <div class="ad-head"><div class="ad-av"></div><div><div class="ad-who">sahni.ai</div><div class="ad-sp">Sponsored</div></div></div>
-      <div class="ad-text">Cold call anxiety? Your first 5 dials decide your whole day…</div>
-      <div class="ad-media" style="background:linear-gradient(135deg, ${chip}55, ${chip}22)">“the 10am rule — call when they answer”</div>
-      <div class="ad-foot"><span class="ad-hl">Start your free trial</span><span class="ad-cta">SIGN UP</span></div>
-      <div class="ad-stat">CPA $29 · best performer · scaling to $180/day</div></div>`;
+      <div class="ad-head"><div class="ad-av"></div><div><div class="ad-who">sahni.ai</div><div class="ad-sp">Реклама</div></div></div>
+      <div class="ad-text">Тревожно звонить незнакомым людям? Первые 5 звонков определяют весь день…</div>
+      <div class="ad-media" style="background:linear-gradient(135deg, ${chip}55, ${chip}22)">«правило 10 утра — звоните, когда отвечают»</div>
+      <div class="ad-foot"><span class="ad-hl">Начать бесплатный период</span><span class="ad-cta">РЕГИСТРАЦИЯ</span></div>
+      <div class="ad-stat">CPA $29 · лучший результат · масштабирование до $180 в день</div></div>`;
     case 'newt': return `<div class="mk mk-mail">
-      <div class="ml-lab">SUBJECT A</div><div class="ml-sub">calls before 10am are a trap</div>
-      <div class="ml-lab">SUBJECT B</div><div class="ml-sub">we looked at 40,000 calls — call at this time</div>
-      <div class="ml-body">  before 10am ...... 11% connect
-  10:00–11:30 ...... 21% connect
-  after 4pm ........ 9% connect
+      <div class="ml-lab">ТЕМА A</div><div class="ml-sub">звонки до 10 утра — ловушка</div>
+      <div class="ml-lab">ТЕМА Б</div><div class="ml-sub">мы изучили 40 000 звонков — звоните в это время</div>
+      <div class="ml-body">  до 10:00 .......... 11% ответов
+  10:00–11:30 ...... 21% ответов
+  после 16:00 ...... 9% ответов
 
-→ 3,400 subscribers · CTA: reply "10AM"</div></div>`;
+→ 3 400 подписчиков · призыв: ответить «10:00»</div></div>`;
     case 'scout': return `<div class="mk mk-doc">
-      <div class="d-brand">OPPORTUNITY MEMO</div>
-      <div class="d-title">CallForge +8% price rise</div>
-      <div class="d-line"><span>Window</span><b>2–3 weeks</b></div>
-      <div class="d-line"><span>Play</span><b>comparison page + retargeting</b></div>
-      <div class="d-line"><span>Briefed</span><b>META ADS · PROPOSALS</b></div>
-      <div class="d-p">Their G2 reviews already flag value-for-money. Talk-track: 12-month price lock.</div></div>`;
+      <div class="d-brand">ВОЗМОЖНОСТЬ</div>
+      <div class="d-title">CallForge повысил цену на 8%</div>
+      <div class="d-line"><span>Период</span><b>2–3 недели</b></div>
+      <div class="d-line"><span>Ход</span><b>страница сравнения + ретаргетинг</b></div>
+      <div class="d-line"><span>Получатели</span><b>ТАРГЕТ · ПРЕДЛОЖЕНИЯ</b></div>
+      <div class="d-p">В отзывах G2 уже отмечают слабое соотношение цены и качества. Аргумент: фиксация цены на 12 месяцев.</div></div>`;
     case 'enzo': return `<div class="mk mk-doc">
-      <div class="d-brand">PURCHASE ORDER</div>
-      <div class="d-title">FullEnrich — 500 credits</div>
-      <div class="d-line"><span>Cost</span><b>$250 ($0.50/credit)</b></div>
-      <div class="d-line"><span>Current balance</span><b>38 credits — out tomorrow</b></div>
-      <div class="d-line"><span>Burn rate</span><b>~90/week</b></div>
-      <div class="d-p">Same card as last month. Without credits, enrichment stops and the Sales Lead runs dry.</div></div>`;
+      <div class="d-brand">ЗАЯВКА НА ПОКУПКУ</div>
+      <div class="d-title">FullEnrich — 500 кредитов</div>
+      <div class="d-line"><span>Стоимость</span><b>$250 ($0,50 за кредит)</b></div>
+      <div class="d-line"><span>Текущий остаток</span><b>38 кредитов — закончатся завтра</b></div>
+      <div class="d-line"><span>Расход</span><b>≈90 в неделю</b></div>
+      <div class="d-p">Та же карта, что и в прошлом месяце. Без кредитов обогащение лидов остановится, и у отдела продаж закончатся данные.</div></div>`;
     default: {
       // generic: render the agent's own deliverable in a document frame
       if (!FILE_GEN[id]) return '';
@@ -1024,7 +1037,7 @@ function fireAgentEvent(seedTs) {
   const ids = Object.keys(R).filter(id => R[id].v1 && R[id].v1.ev && R[id].state !== 'stuck');
   const r = R[ids[Math.floor(Math.random() * ids.length)]];
   const ev = weightedEv(r.v1.ev);
-  const text = ev.t();
+  const text = rnd(WORKLINES[r.a.dept] || ['▸ задача обновлена']).replace(/^▸\s*/, '');
   r.feed.unshift({ i: ev.i, text, ts: seedTs || Date.now() });
   if (r.feed.length > 30) r.feed.pop();
   if (!seedTs) {
@@ -1328,7 +1341,7 @@ function tickLOD() {
 function tickClock() {
   const d = new Date();
   document.getElementById('clock').textContent =
-    d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 }
 setInterval(tickClock, 1000); tickClock();
 
@@ -1359,9 +1372,9 @@ function applyRoster(agents) {
     r.pill.innerHTML = (r.a.lead ? '<span class="star">★</span>' : '') + esc(a.name);
     r.v1 = r.v1 || {};
     r.v1.role = a.role || r.v1.role || ''; r.v1.tagline = a.does || r.v1.tagline || '';
-    r.v1.greeting = `${a.does || 'I am ' + a.name + '.'} Give me a task in the bar on the right, or ask me something here.` +
-      (a.interviewer && a.setUp === false ? ` Nothing in this department is yours yet: say "set up" and I will ask you five questions about how it works here, then write it down for the team.` : '');
-    r.v1.chips = a.interviewer && a.setUp === false ? ['set up', 'What can you do for me?', 'What tools can you use?'] : ['What are you working on?', 'What can you do for me?', 'What tools can you use?'];
+    r.v1.greeting = `${a.does || 'Я — ' + a.name + '.'} Поставьте мне задачу на панели справа или задайте вопрос здесь.` +
+      (a.interviewer && a.setUp === false ? ` Этот отдел ещё не настроен: напишите «настроить», и я задам пять вопросов о ваших процессах, а затем сохраню ответы для команды.` : '');
+    r.v1.chips = a.interviewer && a.setUp === false ? ['настроить', 'Что ты умеешь?', 'Какими инструментами ты можешь пользоваться?'] : ['Над чем ты работаешь?', 'Что ты умеешь?', 'Какими инструментами ты можешь пользоваться?'];
     if (chatHist[a.id] && chatHist[a.id][0] && chatHist[a.id][0].who === 'agent') chatHist[a.id][0].text = r.v1.greeting;
     if (modalOpen === a.id) openAgentRail(a.id, modalTab, false);
   }
@@ -1370,7 +1383,7 @@ function applyRoster(agents) {
 tasks = initTasks({
   hud, R, deptRT, RAIL_SIDE, spawnEmote, chatPush, chatHist, feedPush, zoomToApproval, enterFocus, openAgent, esc,
   brainWrite: (id, title) => brain.write(id, title), brain,
-  onLive: (h) => { document.querySelector('#topbar .brand .ver').textContent = 'BETA'; document.title = `${h.name} — Agents Office`; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
+  onLive: (h) => { document.querySelector('#topbar .brand .ver').textContent = 'БЕТА'; document.title = `${h.name} — Офис агентов`; brain.setOwner(h.name); brain.setQuiet(true); applyRoster(h.agents); },
   onTools: (agentId, keys) => mcp.onToolsUsed(agentId, keys),
   requestApproval, setStuck: setStuckLive,
   onUsage: (u) => { if (mcp && mcp.setUsage) mcp.setUsage(u); }, // V3.6: the plan's gauge in the top bar

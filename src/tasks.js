@@ -115,17 +115,17 @@ applyTasks({ POOL, KEYS, CHAINS, SEGMENTS, AGENTS }); // INDUSTRY PROFILE (12 Se
 function fill(s, v) { return s.replace('{co}', v.co).replace('{n}', v.n).replace('{segment}', v.segment); }
 function vars() { return { co: rnd(P.co), n: ri(6, 40), segment: rnd(SEGMENTS) }; }
 function timeStr(ts) {
-  return new Date(ts).toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+  return new Date(ts).toLocaleTimeString('ru-RU', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 }
 function span(ms) { // "4 min" · "1 h 12 m" · "3 h"
   const m = Math.max(0, Math.round(ms / 60000));
-  if (m < 1) return 'just now';
-  if (m < 60) return m + ' min';
+  if (m < 1) return 'только что';
+  if (m < 60) return m + ' мин';
   const h = Math.floor(m / 60), r = m % 60;
-  return r ? `${h} h ${r} m` : `${h} h`;
+  return r ? `${h} ч ${r} мин` : `${h} ч`;
 }
 const agentOf = id => AGENTS.find(a => a.id === id);
-const STATE_LABEL = { next: 'Backlog', doing: 'In progress', waiting: 'Waiting', done: 'Done', sched: 'Scheduled', scheduled: 'Scheduled' }; // scheduled (V3.2.1): a task with a date, not yet fired
+const STATE_LABEL = { next: 'Очередь', doing: 'В работе', waiting: 'Ожидает', done: 'Готово', sched: 'Запланировано', scheduled: 'Запланировано' };
 
 export function initTasks(ctx) {
   const { R, deptRT, spawnEmote, chatPush, chatHist, feedPush, zoomToApproval, enterFocus, openAgent,
@@ -141,8 +141,8 @@ export function initTasks(ctx) {
   // V3.5 routines. Live: the server's list (polled). Demo: session-only, fired by this tick.
   const routines = []; let rseq = 1, polling = false, railAgent = null, railExp = false;
   const RT_DEPTS = ['emails', 'fin', 'sales'];
-  const RT_NAMES = PROFILE ? Object.fromEntries(Object.entries(PROFILE.pods).map(([k, v]) => [k, titleCase(v)])) : { emails: 'Emails', fin: 'Accounting', sales: 'Sales', marketing: 'Marketing', ops: 'Operations', delivery: 'Delivery' };
-  const rtRefuse = k => `Routines come to ${RT_NAMES[k] || k} in a later release. This release: Emails, Accounting and Sales.`;
+  const RT_NAMES = PROFILE ? Object.fromEntries(Object.entries(PROFILE.pods).map(([k, v]) => [k, titleCase(v)])) : { emails: 'Почта', fin: 'Финансы', sales: 'Продажи', marketing: 'Маркетинг', ops: 'Операции', delivery: 'Реализация' };
+  const rtRefuse = k => `Сценарии для отдела «${RT_NAMES[k] || k}» появятся в следующей версии. Сейчас они доступны для почты, финансов и продаж.`;
   const deptRoutines = k => routines.filter(r => r.dept === k);
   const agentRoutines = id => routines.filter(r => r.agent === id);
   const nextOf = list => list.filter(r => !r.paused && r.nextAt).sort((a, b) => a.nextAt - b.nextAt)[0];
@@ -165,17 +165,18 @@ export function initTasks(ctx) {
   function visibleTitles(id) { return new Set(tasks.filter(t => t.agent === id && t.state !== 'done').map(t => t.title)); }
   function pick(id) {
     const seen = visibleTitles(id);
-    for (let i = 0; i < 4; i++) { const t = fill(rnd(POOL[id]), vars()); if (!seen.has(t)) return t; }
-    return fill(rnd(POOL[id]), vars());
+    const a = agentOf(id);
+    const choices = [
+      `Проверить текущие материалы по направлению «${a.name}»`,
+      `Подготовить результат для отдела «${DEPTS[a.dept].name}»`,
+      `Обновить рабочие данные и отметить риски`,
+      `Собрать краткую сводку по текущей работе`,
+      `Проверить качество результата перед передачей`,
+    ];
+    return choices.find(t => !seen.has(t)) || rnd(choices);
   }
   // a fresh piece of work for an agent: sometimes the first step of a handoff chain
   function freshTask(id, extra = {}) {
-    const starts = CHAINS.filter(c => c[0][0] === id);
-    if (starts.length && Math.random() < 0.45) {
-      const v = vars();
-      const chain = rnd(starts).map(([aid, title]) => [aid, fill(title, v)]);
-      return mk({ agent: id, title: chain[0][1], chain, chainI: 0, ...extra });
-    }
     return mk({ agent: id, title: pick(id), ...extra });
   }
   function start(t, now) {
@@ -193,14 +194,14 @@ export function initTasks(ctx) {
     doneCount[t.dept]++;
     const r = R[t.agent];
     spawnEmote(r, '✓');
-    feedPush(r, '✓', 'Done: ' + t.title);
-    if (chatHist[t.agent]) chatPush(t.agent, { who: 'work', i: '✓', text: 'done — ' + t.title });
+    feedPush(r, '✓', 'Готово: ' + t.title);
+    if (chatHist[t.agent]) chatPush(t.agent, { who: 'work', i: '✓', text: 'готово — ' + t.title });
     if (t.live) deliver(t); // the real deliverable lands in the agent's chat; the server already wrote the note
     else if (t.piece) { if (R[t.leadId]) { spawnEmote(R[t.leadId], '📋'); feedPush(R[t.leadId], '📋', `Piece in from ${agentOf(t.agent).name}: ${t.title}`); } } // demo: the piece walks back to the lead
     // demo: finished work becomes a note in the Brain — always for tasks you added, a quarter of the rest
     else if (brainWrite && (t.by === 'you' || Math.random() < 0.25)) brainWrite(t.agent, t.title);
     touch(t, 'done');
-    if (!t.live && t.routine && t.needsOk && requestApproval) requestApproval(t.agent, `"${t.title}" is ready — send it?`); // demo: a routine that needs the OK asks for it
+    if (!t.live && t.routine && t.needsOk && requestApproval) requestApproval(t.agent, `«${t.title}» готово — отправить?`);
     if (t.chain && t.chainI < t.chain.length - 1) { // hand the work to the next desk — it appears in their backlog
       const [nid, ntitle] = t.chain[t.chainI + 1];
       const nt = mk({ agent: nid, title: ntitle, chain: t.chain, chainI: t.chainI + 1, from: t.agent });
@@ -264,10 +265,10 @@ export function initTasks(ctx) {
 
   /* ---------- badge rows (far-zoom layer): DOING · NEXT · DONE per pod ---------- */
   function rowHTML(k) {
-    return `<div class="b-tasks" data-tkrow="${k}" title="show ${DEPTS[k].short} in the task panel">
-      <span>DOING<b data-tk="${k}-doing">${deptTasks(k, 'doing').length}</b></span>
-      <span>NEXT<b data-tk="${k}-next">${deptTasks(k, 'next').length}</b></span>
-      <span>DONE<b data-tk="${k}-done">${doneCount[k]}</b></span></div>`;
+    return `<div class="b-tasks" data-tkrow="${k}" title="показать ${DEPTS[k].short} на панели задач">
+      <span>В РАБОТЕ<b data-tk="${k}-doing">${deptTasks(k, 'doing').length}</b></span>
+      <span>ДАЛЕЕ<b data-tk="${k}-next">${deptTasks(k, 'next').length}</b></span>
+      <span>ГОТОВО<b data-tk="${k}-done">${doneCount[k]}</b></span></div>`;
   }
   for (const k of DEPT_KEYS) deptRT[k].apprRow.insertAdjacentHTML('beforebegin', rowHTML(k));
   function syncBadges() {
@@ -314,7 +315,7 @@ export function initTasks(ctx) {
   const modelBit = t => t.modelUsed ? ` · ${modelName(t.modelUsed)}${t.effortUsed ? ' ' + t.effortUsed : ''}${t.modelFrom && t.modelFrom !== 'office' ? ' (' + FROM_TEXT[t.modelFrom] + ')' : ''}` : '';
   // V3.6.1: the EFFORT menu beside the model — AUTO (the model's own; Opus = high) · Low · Medium · High · Extra high · Max. Same precedence as the model.
   let officeEffort = '', effortTouched = false;
-  P_.effort.innerHTML = `<option value="">AUTO</option>` + EFFORT_KEYS.map(k => `<option value="${k}">${EFFORT_NAME[k].toUpperCase()}</option>`).join('');
+  P_.effort.innerHTML = `<option value="">АВТО</option>` + EFFORT_KEYS.map(k => `<option value="${k}">${EFFORT_NAME[k].toUpperCase()}</option>`).join('');
   P_.effort.value = officeEffort;
   P_.effort.addEventListener('change', () => { effortTouched = P_.effort.value !== officeEffort; P_.effort.classList.toggle('set', effortTouched); updateHint(); });
   P_.effort.addEventListener('keydown', e => e.stopPropagation());
@@ -325,11 +326,11 @@ export function initTasks(ctx) {
   const effortUsedFor = (mdl) => effortFor({ task: effortSend(), office: chosenEffort() === 'auto' ? '' : officeEffort, model: mdl }); // what a demo card will show
   const pickBit = (forWhat) => { // the hint's "Opus · High for this task"
     const bits = []; if (modelTouched) bits.push(modelName(P_.model.value)); if (effortTouched) bits.push(effortName(P_.effort.value || ''));
-    return bits.length ? ` · <b>${bits.join(' · ')}</b> for this ${forWhat}` : '';
+    return bits.length ? ` · <b>${bits.join(' · ')}</b> для ${forWhat === 'routine' ? 'этого сценария' : 'этой задачи'}` : '';
   };
   // the REPEAT picker (B1): cadence + time; "needs my OK" defaults on (D1)
   let repeat = false;
-  P_.cad.innerHTML = [['weekdays', 'Every weekday'], ['daily', 'Every day'], ['mon', 'Mondays'], ['tue', 'Tuesdays'], ['wed', 'Wednesdays'], ['thu', 'Thursdays'], ['fri', 'Fridays'], ['sat', 'Saturdays'], ['sun', 'Sundays'], ['hourly', 'Every hour, 9–5, weekdays']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+  P_.cad.innerHTML = [['weekdays', 'По будням'], ['daily', 'Каждый день'], ['mon', 'По понедельникам'], ['tue', 'По вторникам'], ['wed', 'По средам'], ['thu', 'По четвергам'], ['fri', 'По пятницам'], ['sat', 'По субботам'], ['sun', 'По воскресеньям'], ['hourly', 'Каждый час, 9:00–17:00, по будням']].map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
   P_.rep.addEventListener('click', () => { repeat = !repeat; P_.rep.classList.toggle('on', repeat); P_.repRow.hidden = !repeat; updateHint(); if (repeat) P_.input.focus(); });
   P_.cad.addEventListener('change', () => { P_.at.disabled = P_.cad.value === 'hourly'; updateHint(); });
   P_.at.addEventListener('change', updateHint);
@@ -337,12 +338,12 @@ export function initTasks(ctx) {
   const routineIntent = text => repeat ? { when: fromPicker(P_.cad.value, P_.at.value), text, picker: true } : parseWhen(text);
   // V3.2 (16 Sep) Agent Teams: the TEAM toggle — the department lead splits the task across its desks, they work at once, the lead writes the final
   let teamOn = false, teamsCfg = { enabled: true, max: 4 };
-  const teamIntent = text => /\b(as a team|team up|team this|get the (whole )?team|the (whole )?team (on|to|should|can)|with the team|(spawn|use|get) (\d+|two|three|four|five|a few|some) teammates?|\d+ teammates|split (it|this|the work) (up|across|between)|teammates|team:|whole department)\b/i.test(text);
+  const teamIntent = text => /\b(as a team|team up|team this|get the (whole )?team|the (whole )?team (on|to|should|can)|with the team|(spawn|use|get) (\d+|two|three|four|five|a few|some) teammates?|\d+ teammates|split (it|this|the work) (up|across|between)|teammates|team:|whole department|командой|всей командой|весь отдел|раздели между агентами)\b/i.test(text);
   const asTeam = text => teamsCfg.enabled && (teamOn || teamIntent(text));
   const leadOf = k => AGENTS.find(x => x.dept === k && x.lead) || AGENTS.filter(x => x.dept === k)[0];
   P_.team.addEventListener('click', () => { teamOn = !teamOn; P_.team.classList.toggle('on', teamOn); updateHint(); if (teamOn) P_.input.focus(); });
   function resetTeam() { teamOn = false; P_.team.classList.remove('on'); }
-  const teamBit = t => t.team?.members?.length ? ` · <span class="tp-team-chip">TEAM ${t.team.members.length + 1}</span>` : t.piece ? ' · <span class="tp-team-chip">PIECE</span>' : '';
+  const teamBit = t => t.team?.members?.length ? ` · <span class="tp-team-chip">КОМАНДА ${t.team.members.length + 1}</span>` : t.piece ? ' · <span class="tp-team-chip">ЧАСТЬ</span>' : '';
   const membersText = t => (t.team?.members || []).map(id => agentOf(id)?.name || id).join(', ');
   let dept = 'marketing', filter = 'all';
   P_.menu.innerHTML = DEPT_KEYS.map(k => `<button data-k="${k}"><span class="dot" style="background:${DEPTS[k].chip}"></span>${DEPTS[k].name}</button>`).join('');
@@ -354,7 +355,7 @@ export function initTasks(ctx) {
     P_.ddName.textContent = DEPTS[k].short;
     P_.ddDot.style.background = DEPTS[k].chip;
     B_.dept.textContent = DEPTS[k].name.toUpperCase(); B_.dot.style.background = DEPTS[k].chip;
-    P_.input.placeholder = `Type a task for ${DEPTS[k].name.toLowerCase()}…`;
+    P_.input.placeholder = `Введите задачу для отдела «${DEPTS[k].name.toLowerCase()}»…`;
     updateHint();
   }
   // routing: keywords → the right agent in the chosen dept; fallback = the dept lead (or first agent)
@@ -376,23 +377,23 @@ export function initTasks(ctx) {
     if (rt) { // a routine in the making: say the schedule back before Add is pressed
       if (!RT_DEPTS.includes(dept)) { P_.hint.innerHTML = `<span class="tp-amber">${esc(rtRefuse(dept))}</span>`; P_.hint.className = 'tp-hint on'; return; }
       const { agent: ra } = route(dept, rt.text || text);
-      const need = rt.needsDay ? 'which day? say "every Monday …"' : rt.needsTime ? 'what time? add "at 8am"' : null;
-      P_.hint.innerHTML = `<span class="tp-av" style="border-color:${DEPTS[ra.dept].chip};background:${DEPTS[ra.dept].chip}55">⏱</span>Routine · <b>${esc(describe(rt.when) || 'every week')}</b>` +
-        (need ? ` · <span class="tp-amber">${need}</span>` : live ? ' · Claude names the agent when you press Add' : ` · goes to <b>${ra.name}</b>`) + (rt.guessed ? ` · "${esc(rt.guessWord)}" taken as ${rt.when.at}` : '');
+      const need = rt.needsDay ? 'укажите день, например «каждый понедельник …»' : rt.needsTime ? 'укажите время, например «в 8:00»' : null;
+      P_.hint.innerHTML = `<span class="tp-av" style="border-color:${DEPTS[ra.dept].chip};background:${DEPTS[ra.dept].chip}55">⏱</span>Сценарий · <b>${esc(describe(rt.when) || 'каждую неделю')}</b>` +
+        (need ? ` · <span class="tp-amber">${need}</span>` : live ? ' · Claude выберет агента после нажатия «Добавить»' : ` · получит <b>${ra.name}</b>`) + (rt.guessed ? ` · «${esc(rt.guessWord)}» принято за ${rt.when.at}` : '');
       P_.hint.innerHTML += pickBit('routine');
       P_.hint.className = 'tp-hint on'; return;
     }
     if (asTeam(text)) { // a team in the making: the lead, and how many desks
       const L = leadOf(dept), chip = DEPTS[dept].chip;
-      P_.hint.innerHTML = `<span class="tp-av" style="border-color:${chip};background:${chip}55">⚑</span>Team · <b>${L.name}</b> splits it across up to ${teamsCfg.max} desks, they work at the same time, the lead writes the final` + pickBit('task');
+      P_.hint.innerHTML = `<span class="tp-av" style="border-color:${chip};background:${chip}55">⚑</span>Команда · <b>${L.name}</b> распределит работу между ${teamsCfg.max} агентами, они выполнят её параллельно, а руководитель соберёт результат` + pickBit('task');
       P_.hint.className = 'tp-hint on'; return;
     }
     const { agent: a, matched } = route(dept, text);
     const busy = agentTasks(a.id, 'doing').length > 0 || R[a.id].state === 'stuck';
     const chip = DEPTS[a.dept].chip;
     P_.hint.innerHTML = `<span class="tp-av" style="border-color:${chip};background:${chip}55">${a.name[0]}</span>` +
-      (live ? `Probably <b>${a.name}</b> · Claude confirms when you press Add`
-            : `Goes to <b>${a.name}</b> · ${busy ? 'starts after their current job' : 'starts straight away'}${matched ? '' : ' · say more and I’ll pick a specialist'}`) +
+      (live ? `Вероятно, <b>${a.name}</b> · Claude подтвердит после нажатия «Добавить»`
+            : `Получит <b>${a.name}</b> · ${busy ? 'начнёт после текущей задачи' : 'начнёт сразу'}${matched ? '' : ' · уточните задачу, чтобы выбрать специалиста'}`) +
       pickBit('task');
     P_.hint.className = 'tp-hint on';
   }
@@ -423,7 +424,7 @@ export function initTasks(ctx) {
       const text = title, k = dept;
       P_.input.value = ''; P_.input.disabled = true; P_.add.disabled = true;
       const team = asTeam(text);
-      say(team ? `Routing through Claude — <b>${leadOf(k).name}</b> is reading it for the team…` : `Routing through Claude — ${DEPTS[k].name.toLowerCase()} is reading it…`, 'busy');
+      say(team ? `Передаём Claude — <b>${leadOf(k).name}</b> изучает задачу для команды…` : `Передаём Claude — отдел «${DEPTS[k].name.toLowerCase()}» изучает задачу…`, 'busy');
       try {
         const mdl = chosenModel();
         const r = await fetch(API + '/tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dept: k, text, model: mdl || undefined, effort: effortSend(), team: team || undefined }) });
@@ -433,10 +434,10 @@ export function initTasks(ctx) {
           team: st.team ? { lead: st.team.lead, members: [] } : undefined });
         resetModel(); resetTeam();
         touch(t, 'added'); spawnEmote(R[t.agent], st.team ? '⚑' : '📋');
-        say(st.team ? `Added — <b>${agentOf(t.agent).name}</b> has it and is splitting it across the team` : `Added — <b>${agentOf(t.agent).name}</b> has it${st.why ? ' · ' + esc(st.why) : ''}`);
+        say(st.team ? `Добавлено — <b>${agentOf(t.agent).name}</b> распределяет задачу между командой` : `Добавлено — задачу получил <b>${agentOf(t.agent).name}</b>${st.why ? ' · ' + esc(st.why) : ''}`);
         setTimeout(() => { if (!P_.input.value) P_.hint.classList.remove('on'); }, 7000);
       } catch (e) {
-        say(`Claude couldn't take it (${esc(e.message)}). Kept it on the board.`, 'err');
+        say(`Claude не смог принять задачу (${esc(e.message)}). Она сохранена на доске.`, 'err');
         const { agent: a } = route(k, text); addTask(a.id, text, 'you');
       }
       P_.input.disabled = false; P_.add.disabled = false; P_.input.blur(); // hand the keys back to the office
@@ -446,7 +447,7 @@ export function initTasks(ctx) {
       const t = addTeamDemo(dept, title);
       const mdl = chosenModel(); t.modelUsed = mdl || officeModel; t.modelFrom = mdl ? 'task' : 'office'; const ef = effortUsedFor(t.modelUsed); t.effortUsed = ef.effort || ''; t.effortFrom = ef.from;
       resetModel(); resetTeam(); P_.input.value = ''; updateHint();
-      say(`Added — <b>${agentOf(t.agent).name}</b> has it with ${esc(membersText(t))}.`); setTimeout(updateHint, 3200); P_.input.blur();
+      say(`Добавлено — <b>${agentOf(t.agent).name}</b> выполняет её вместе с ${esc(membersText(t))}.`); setTimeout(updateHint, 3200); P_.input.blur();
       return;
     }
     const { agent: a } = route(dept, title);
@@ -454,8 +455,8 @@ export function initTasks(ctx) {
     if (t) { const mdl = chosenModel(); t.modelUsed = mdl || officeModel; t.modelFrom = mdl ? 'task' : 'office'; const ef = effortUsedFor(t.modelUsed); t.effortUsed = ef.effort || ''; t.effortFrom = ef.from; }
     resetModel();
     P_.input.value = ''; updateHint();
-    if (t) { say(`Added — <b>${a.name}</b> has it.`); setTimeout(updateHint, 2600); P_.input.blur(); }
-    else say(`<b>${a.name}</b> already has five queued — let one finish first.`);
+    if (t) { say(`Добавлено — задачу получил <b>${a.name}</b>.`); setTimeout(updateHint, 2600); P_.input.blur(); }
+    else say(`У <b>${a.name}</b> уже пять задач в очереди — дождитесь завершения одной из них.`);
   }
   /* ---------- V3.2 (16 Sep) demo teams: the same moves on a timer ---------- */
   function addTeamDemo(k, title) {
@@ -473,32 +474,32 @@ export function initTasks(ctx) {
   async function submitRoutine(rt, raw) {
     const k = dept;
     if (!RT_DEPTS.includes(k)) { say(`<span class="tp-amber">${esc(rtRefuse(k))}</span>`, 'err'); return; }
-    if (rt.needsDay) { say('Which day? Say "every Monday …" or "Mon and Thu …".', 'err'); return; }
-    if (rt.needsTime) { say('What time? Add "at 8am" or "at 17:30", or press REPEAT and pick one.', 'err'); return; }
+    if (rt.needsDay) { say('Укажите день: например, «каждый понедельник …» или «по понедельникам и четвергам …».', 'err'); return; }
+    if (rt.needsTime) { say('Укажите время: например, «в 8:00» или «в 17:30», либо нажмите ПОВТОР.', 'err'); return; }
     const text = (rt.text || raw).trim().replace(/[.!]+$/, '');
-    if (!text) { say('What should happen? The sentence has a time but no task.', 'err'); return; }
+    if (!text) { say('Что нужно сделать? В тексте есть время, но нет задачи.', 'err'); return; }
     if (live) {
       P_.input.disabled = true; P_.add.disabled = true;
-      say('Setting the routine — Claude is naming the agent…', 'busy');
+      say('Создаём сценарий — Claude выбирает агента…', 'busy');
       try {
         const r = await fetch(API + '/routines', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dept: k, text, when: rt.when, needsOk: rt.picker ? P_.okc.checked : undefined, model: chosenModel() || undefined, effort: effortSend() }) });
         const j = await r.json(); if (!r.ok) throw new Error(j.error || r.statusText);
         setRoutines([...routines.filter(x => x.id !== j.routine.id), j.routine]);
         const a = agentOf(j.routine.agent);
-        say(`Routine set — <b>${a.name}</b> · ${esc(j.routine.desc)} · next ${esc(untilText(j.routine.nextAt))}${j.routine.needsOk ? ' · waits for your OK' : ' · read-only, no OK needed'}${j.guessed ? ` · "${esc(j.guessed)}" taken as ${j.routine.when.at}` : ''}`);
+        say(`Сценарий создан — <b>${a.name}</b> · ${esc(j.routine.desc)} · следующий запуск ${esc(untilText(j.routine.nextAt))}${j.routine.needsOk ? ' · ждёт вашего одобрения' : ' · только чтение, одобрение не нужно'}${j.guessed ? ` · «${esc(j.guessed)}» принято за ${j.routine.when.at}` : ''}`);
         P_.input.value = ''; resetModel(); spawnEmote(R[a.id], '⏱'); feedPush(R[a.id], '⏱', `New routine: ${j.routine.title} (${j.routine.desc})`);
         filter = 'sched'; render(true); poll();
-      } catch (e) { say(`Claude couldn't set it (${esc(e.message)}).`, 'err'); }
+      } catch (e) { say(`Claude не смог создать сценарий (${esc(e.message)}).`, 'err'); }
       P_.input.disabled = false; P_.add.disabled = false; P_.input.blur();
       return;
     }
     const { agent: a } = route(k, text);
     const r = addRoutine(k, a.id, text, rt.when, rt.picker ? P_.okc.checked : guessOk(text));
     r.model = chosenModel() || undefined; r.effort = effortSend(); resetModel();
-    P_.input.value = ''; say(`Routine set — <b>${a.name}</b> · ${esc(r.desc)} · next ${esc(untilText(r.nextAt))}${r.needsOk ? ' · waits for your OK' : ' · read-only'}`);
+    P_.input.value = ''; say(`Сценарий создан — <b>${a.name}</b> · ${esc(r.desc)} · следующий запуск ${esc(untilText(r.nextAt))}${r.needsOk ? ' · ждёт вашего одобрения' : ' · только чтение'}`);
     spawnEmote(R[a.id], '⏱'); feedPush(R[a.id], '⏱', `New routine: ${r.title} (${r.desc})`); filter = 'sched'; render(true); P_.input.blur(); setTimeout(updateHint, 5000);
   }
-  function guessOk(text) { const t = text.toLowerCase(); return /\b(send|reply|chase|nudge|remind|post|publish|pay|book|draft|message|email)\b/.test(t) || !/\b(list|summari[sz]e|triage|tell me|what|report|match|reconcile|qualify|review|check|read|find|flag|count)\b/.test(t); }
+  function guessOk(text) { const t = text.toLowerCase(); return /\b(send|reply|chase|nudge|remind|post|publish|pay|book|draft|message|email|отправ|ответ|оплат|опублик|заброни|напиш)\b/.test(t) || !/\b(list|summari[sz]e|triage|tell me|what|report|match|reconcile|qualify|review|check|read|find|flag|count|список|сводк|отч[её]т|провер|прочит|найд|посчита)\b/.test(t); }
   function addRoutine(k, agentId, text, when, needsOk) { // demo: session-only
     const title = (text.charAt(0).toUpperCase() + text.slice(1)).replace(/[.!]+$/, '').slice(0, 90);
     const r = { id: 'r' + rseq++, dept: k, agent: agentId, title, text, when, desc: describe(when), needsOk: !!needsOk, paused: false, nextAt: nextRun(when), lastAt: null, runs: 0, live: false };
@@ -541,9 +542,9 @@ export function initTasks(ctx) {
     el.hidden = !mine.length; if (!mine.length) { el.innerHTML = ''; return; }
     const n = nextOf(mine);
     el.className = 'mrt' + (railExp ? ' exp' : '');
-    el.innerHTML = `<div class="mrt-h"><span>⏱ ${mine.length} routine${mine.length > 1 ? 's' : ''}${n ? ' · next <b>' + esc(untilText(n.nextAt)) + '</b>' : ' · all paused'}</span><span class="car">▸</span></div>
-      <div class="mrt-l">${mine.map(r => `<div class="mrt-r" data-rid="${r.id}"><span>${esc(r.title)}</span><small>${esc(r.desc)} · ${modelName(r.model || officeModel)} · ${r.paused ? 'paused' : 'next ' + esc(untilText(r.nextAt))} · ${r.needsOk ? 'waits for your OK' : 'read-only'}</small>
-        <div class="tp-act"><button class="run" data-act="run">RUN NOW</button><button data-act="${r.paused ? 'resume' : 'pause'}">${r.paused ? 'RESUME' : 'PAUSE'}</button><button data-act="delete">DELETE</button></div></div>`).join('')}</div>`;
+    el.innerHTML = `<div class="mrt-h"><span>⏱ сценариев: ${mine.length}${n ? ' · следующий <b>' + esc(untilText(n.nextAt)) + '</b>' : ' · все приостановлены'}</span><span class="car">▸</span></div>
+      <div class="mrt-l">${mine.map(r => `<div class="mrt-r" data-rid="${r.id}"><span>${esc(r.title)}</span><small>${esc(r.desc)} · ${modelName(r.model || officeModel)} · ${r.paused ? 'приостановлен' : 'следующий ' + esc(untilText(r.nextAt))} · ${r.needsOk ? 'ждёт вашего одобрения' : 'только чтение'}</small>
+        <div class="tp-act"><button class="run" data-act="run">ЗАПУСТИТЬ</button><button data-act="${r.paused ? 'resume' : 'pause'}">${r.paused ? 'ВОЗОБНОВИТЬ' : 'ПРИОСТАНОВИТЬ'}</button><button data-act="delete">УДАЛИТЬ</button></div></div>`).join('')}</div>`;
     el.querySelector('.mrt-h').addEventListener('click', () => { railExp = !railExp; el.classList.toggle('exp', railExp); });
     el.querySelectorAll('.tp-act button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); rtAct(b.closest('[data-rid]').dataset.rid, b.dataset.act); }));
   }
@@ -624,23 +625,23 @@ export function initTasks(ctx) {
     }
   }
   function askApproval(t) { // D1: the draft lands in the chat with APPROVE / REJECT and the agent stands and waves
-    chatPush(t.agent, { who: 'file', icon: '📝', name: slug(t.title) + '.md', meta: `draft · waiting for your OK · ${timeStr(t.changedAt)} · click to view`, content: t.draft || t.result });
-    chatPush(t.agent, { who: 'appr', text: t.ask || `"${t.title}" is ready — approve to send it, reject to tell me what to change.`, pending: true, live: true });
-    feedPush(R[t.agent], '⏸', `Waiting for your OK: ${t.title}`);
+    chatPush(t.agent, { who: 'file', icon: '📝', name: slug(t.title) + '.md', meta: `черновик · ждёт вашего одобрения · ${timeStr(t.changedAt)} · нажмите для просмотра`, content: t.draft || t.result });
+    chatPush(t.agent, { who: 'appr', text: t.ask || `«${t.title}» готово — одобрите отправку или отклоните и напишите, что изменить.`, pending: true, live: true });
+    feedPush(R[t.agent], '⏸', `Ждёт вашего одобрения: ${t.title}`);
     if (setStuck) setStuck(t.agent, t.ask, t.sid);
   }
   const pendingFeedback = {}; // agentId → sid after REJECT: the owner's next chat line is the note
   function resolveLive(agentId, approved) { // APPROVE / REJECT on a live draft (main.js calls this instead of the demo onResolve)
     const t = tasks.find(x => x.live && x.agent === agentId && x.state === 'waiting'); if (!t) return false;
-    if (approved) { post(`/tasks/${t.sid}/approve`); toDoing(t); chatPush(agentId, { who: 'agent', text: '✓ Approved — sending it now. It lands here when it is done.' }); }
-    else { pendingFeedback[agentId] = t.sid; chatPush(agentId, { who: 'agent', text: 'Understood. What should change? Tell me here and I will redo it — it comes back for your OK.' }); }
+    if (approved) { post(`/tasks/${t.sid}/approve`); toDoing(t); chatPush(agentId, { who: 'agent', text: '✓ Одобрено — отправляю. Готовый результат появится здесь.' }); }
+    else { pendingFeedback[agentId] = t.sid; chatPush(agentId, { who: 'agent', text: 'Понял. Что изменить? Напишите здесь, и я переделаю — результат снова придёт на одобрение.' }); }
     return true;
   }
   const pendingReject = agentId => !!pendingFeedback[agentId];
   function rejectLive(agentId, feedback) {
     const sid = pendingFeedback[agentId]; delete pendingFeedback[agentId];
     const t = tasks.find(x => x.live && x.sid === sid); if (!t) return false;
-    post(`/tasks/${sid}/reject`, { feedback }); toDoing(t); chatPush(agentId, { who: 'agent', text: 'On it — reworking it with your note. It comes back here for your OK.' });
+    post(`/tasks/${sid}/reject`, { feedback }); toDoing(t); chatPush(agentId, { who: 'agent', text: 'Принято — переделываю с учётом комментария. Результат снова появится здесь для одобрения.' });
     return true;
   }
   function toDoing(t) { t.state = 'doing'; t.startedAt = performance.now(); t.progress = 0; t.pausedAt = null; t.running = true; t.ready = false; t.srv = true; touch(t, 'started'); }
@@ -655,7 +656,7 @@ export function initTasks(ctx) {
       usageDue = true;
       if (t.tools.length && onTools) onTools(t.agent, t.tools); // the connectors the agent really pulled on light up
       if (brain && !t.error) fetch(API + '/brain').then(r => r.json()).then(g => brain.setGraph(g)).catch(() => {}); // the new note joins the graph
-    } catch (e) { t.result = 'Could not complete this task: ' + e.message; t.error = true; }
+    } catch (e) { t.result = 'Не удалось выполнить задачу: ' + e.message; t.error = true; }
     t.ready = true;
   }
   function revise(agentId, feedback) { // "revise: …" in chat re-runs that agent's last live deliverable
@@ -673,7 +674,7 @@ export function initTasks(ctx) {
       live = true; setOfficeModel(h.model); setOfficeEffort(h.effort);
       if (h.teams) { teamsCfg = { enabled: h.teams.enabled !== false, max: h.teams.max || 4 }; P_.team.hidden = !teamsCfg.enabled; }
       const mode = panel.querySelector('.tp-mode');
-      if (mode) { mode.hidden = false; mode.textContent = 'LIVE · ' + (h.backend === 'anthropic-sdk' ? 'CLAUDE API' : 'CLAUDE'); mode.classList.add('live'); mode.title = `${h.name} · ${h.backend} · ${modelName(h.model)} by default · brain: ${h.brain}`; }
+      if (mode) { mode.hidden = false; mode.textContent = 'ОНЛАЙН · ' + (h.backend === 'anthropic-sdk' ? 'CLAUDE API' : 'CLAUDE'); mode.classList.add('live'); mode.title = `${h.name} · ${h.backend} · модель по умолчанию: ${modelName(h.model)} · база знаний: ${h.brain}`; }
       if (brain) { try { brain.setGraph(await (await fetch(API + '/brain')).json()); } catch {} }
       const list = await (await fetch(API + '/tasks')).json();
       for (const st of list) {
@@ -699,7 +700,7 @@ export function initTasks(ctx) {
     return t;
   }
   // chips: filters with live counts
-  const CHIPS = [['all', 'All'], ['sched', 'Scheduled'], ['next', 'Backlog'], ['doing', 'In progress'], ['waiting', 'Waiting'], ['done', 'Done']];
+  const CHIPS = [['all', 'Все'], ['sched', 'Запланировано'], ['next', 'Очередь'], ['doing', 'В работе'], ['waiting', 'Ожидает'], ['done', 'Готово']];
   function chipsHTML() {
     const scope = scoped();
     const cnt = st => st === 'all' ? scope.length : st === 'sched' ? scopedRoutines().length + scope.filter(t => t.state === 'scheduled').length : scope.filter(t => t.state === st).length;
@@ -717,21 +718,21 @@ export function initTasks(ctx) {
     const who = (f && f !== 'brain') ? a.name : `${a.name} · ${DEPTS[t.dept].short}`;
     switch (t.state) {
       case 'next': {
-        const src = t.piece ? `team piece from ${agentOf(t.leadId)?.name || 'the lead'}` : t.routine ? `routine · ${t.when}${t.late ? ' · <span class="tp-late">late · was due ' + timeStr(t.due) + '</span>' : ''}` : t.by === 'you' ? (t.live ? 'added by you · live' : 'added by you') : t.last === 'handoff' && t.from ? `from ${agentOf(t.from).name}` : t.revised ? 'sent back to revise' : 'from the Brain';
+        const src = t.piece ? `часть командной задачи от ${agentOf(t.leadId)?.name || 'руководителя'}` : t.routine ? `сценарий · ${t.when}${t.late ? ' · <span class="tp-late">с опозданием · срок был ' + timeStr(t.due) + '</span>' : ''}` : t.by === 'you' ? (t.live ? 'добавлено вами · онлайн' : 'добавлено вами') : t.last === 'handoff' && t.from ? `от ${agentOf(t.from).name}` : t.revised ? 'возвращено на доработку' : 'из базы знаний';
         const w = now - t.addedAt;
-        return `${who} · ${w < 60000 ? 'just added' : 'waiting ' + span(w)} · ${src}${teamBit(t)}${modelBit(t)}`;
+        return `${who} · ${w < 60000 ? 'только что добавлено' : 'в очереди ' + span(w)} · ${src}${teamBit(t)}${modelBit(t)}`;
       }
-      case 'doing': return `${who}${t.live ? (t.approved === undefined && t.draftAt ? ' · sending with Claude' : t.team?.members?.length ? ' · leading the team with Claude' : ' · working with Claude') : t.agent === 'vid' ? ' · rendering' : t.teamHold ? ' · waiting on the pieces' : ''}${t.routine ? ' · routine' : ''}${teamBit(t)}${modelBit(t)}`;
-      case 'waiting': return `<span class="tp-amber">waiting ${span(now - t.changedAt)} for your tick</span> · ${who}${t.routine ? ' · routine draft' : ''}${teamBit(t)}${modelBit(t)}`;
-      case 'scheduled': return `${who} · runs ${esc(untilText(t.dueAt))} · ${new Date(t.dueAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} ${timeStr(t.dueAt)}${t.needsOk ? ' · waits for your OK' : ''}${teamBit(t)}${modelBit(t)}`;
-      case 'done': return `${who} · done ${timeStr(t.doneAt)}${t.approved ? (t.live ? ' · sent after your OK' : ' · approved') : ''}${t.late ? ' · <span class="tp-late">ran late</span>' : ''}${teamBit(t)}${modelBit(t)}${t.live ? (t.error ? ' · <span class="tp-amber">failed</span>' : ' · <span class="tp-res">result ready →</span>') : ''}`;
+      case 'doing': return `${who}${t.live ? (t.approved === undefined && t.draftAt ? ' · отправляет через Claude' : t.team?.members?.length ? ' · руководит командой через Claude' : ' · работает с Claude') : t.agent === 'vid' ? ' · рендеринг' : t.teamHold ? ' · ждёт части команды' : ''}${t.routine ? ' · сценарий' : ''}${teamBit(t)}${modelBit(t)}`;
+      case 'waiting': return `<span class="tp-amber">ждёт вашего одобрения ${span(now - t.changedAt)}</span> · ${who}${t.routine ? ' · черновик сценария' : ''}${teamBit(t)}${modelBit(t)}`;
+      case 'scheduled': return `${who} · запуск ${esc(untilText(t.dueAt))} · ${new Date(t.dueAt).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'short' })} ${timeStr(t.dueAt)}${t.needsOk ? ' · ждёт вашего одобрения' : ''}${teamBit(t)}${modelBit(t)}`;
+      case 'done': return `${who} · готово ${timeStr(t.doneAt)}${t.approved ? (t.live ? ' · отправлено после одобрения' : ' · одобрено') : ''}${t.late ? ' · <span class="tp-late">с опозданием</span>' : ''}${teamBit(t)}${modelBit(t)}${t.live ? (t.error ? ' · <span class="tp-amber">ошибка</span>' : ' · <span class="tp-res">результат готов →</span>') : ''}`;
     }
     return who;
   }
   function rowHTMLp(t) {
     const pct = Math.round(t.progress * 100);
     const chip = `<span class="tp-st ${t.state}">${t.state === 'doing' ? `<span data-pct="${t.id}">${pct}%</span>` : t.state === 'scheduled' ? '◷' : STATE_LABEL[t.state]}</span>`;
-    const bar = t.state === 'doing' ? `<div class="tp-bar"><i data-bar="${t.id}" style="width:${pct}%"></i></div>` : t.state === 'scheduled' ? `<div class="tp-act"><button data-act="cancel">CANCEL</button><button data-act="calendar">CALENDAR</button></div>` : '';
+    const bar = t.state === 'doing' ? `<div class="tp-bar"><i data-bar="${t.id}" style="width:${pct}%"></i></div>` : t.state === 'scheduled' ? `<div class="tp-act"><button data-act="cancel">ОТМЕНИТЬ</button><button data-act="calendar">КАЛЕНДАРЬ</button></div>` : '';
     return `<div class="tp-row ${t.state}${t.last === 'handoff' ? ' handoff' : ''}${t.live ? ' live' : ''}${t.piece ? ' piece' : ''}" data-id="${t.id}" data-dept="${t.dept}" data-agent="${t.agent}">
       ${chip}<div class="tp-body"><div class="tp-t">${t.routine || t.state === 'scheduled' ? '⏱ ' : ''}${t.team?.members?.length ? '⚑ ' : ''}${esc(t.title)}</div><div class="tp-m">${metaFor(t)}</div>${bar}</div>
       <span class="tp-ago" data-ago="${t.id}">${span(Date.now() - t.changedAt)}</span></div>`;
@@ -740,14 +741,14 @@ export function initTasks(ctx) {
     const a = agentOf(r.agent);
     return `<div class="tp-row sched${r.paused ? ' paused' : ''}" data-id="r:${r.id}" data-rid="${r.id}" data-dept="${r.dept}" data-agent="${r.agent}">
       <span class="tp-st sched">⏱</span>
-      <div class="tp-body"><div class="tp-t">${esc(r.title)}</div><div class="tp-m">${esc(r.desc)} · ${a.name} · ${modelName(r.model || officeModel)}${r.needsOk ? ' · waits for your OK' : ' · read-only'}${r.lastAt ? ' · last ' + timeStr(r.lastAt) + (r.lastLate ? ' <span class="tp-late">late</span>' : '') : ''}</div>
-      <div class="tp-act"><button class="run" data-act="run">RUN NOW</button><button data-act="${r.paused ? 'resume' : 'pause'}">${r.paused ? 'RESUME' : 'PAUSE'}</button><button data-act="delete">DELETE</button></div></div>
-      <span class="tp-ago" data-rago="${r.id}">${r.paused ? 'PAUSED' : esc(untilText(r.nextAt))}</span></div>`;
+      <div class="tp-body"><div class="tp-t">${esc(r.title)}</div><div class="tp-m">${esc(r.desc)} · ${a.name} · ${modelName(r.model || officeModel)}${r.needsOk ? ' · ждёт вашего одобрения' : ' · только чтение'}${r.lastAt ? ' · прошлый запуск ' + timeStr(r.lastAt) + (r.lastLate ? ' <span class="tp-late">с опозданием</span>' : '') : ''}</div>
+      <div class="tp-act"><button class="run" data-act="run">ЗАПУСТИТЬ</button><button data-act="${r.paused ? 'resume' : 'pause'}">${r.paused ? 'ВОЗОБНОВИТЬ' : 'ПРИОСТАНОВИТЬ'}</button><button data-act="delete">УДАЛИТЬ</button></div></div>
+      <span class="tp-ago" data-rago="${r.id}">${r.paused ? 'ПРИОСТАНОВЛЕН' : esc(untilText(r.nextAt))}</span></div>`;
   }
   function renderNext() { // C1: the next-up strip under the chips
     const n = nextOf(scopedRoutines());
     P_.next.hidden = !n;
-    if (n) P_.next.innerHTML = `<span class="lab">NEXT ⏱</span><span class="nx">${esc(untilText(n.nextAt))}</span><span class="tt">${esc(n.title)} · ${agentOf(n.agent).name}</span>`;
+    if (n) P_.next.innerHTML = `<span class="lab">ДАЛЕЕ ⏱</span><span class="nx">${esc(untilText(n.nextAt))}</span><span class="tt">${esc(n.title)} · ${agentOf(n.agent).name}</span>`;
   }
   function rects() {
     const m = {};
@@ -767,14 +768,14 @@ export function initTasks(ctx) {
   }
   function render(structural) {
     const f = getFocused();
-    P_.scope.textContent = (f && f !== 'brain') ? DEPTS[f].name : 'WHOLE OFFICE';
+    P_.scope.textContent = (f && f !== 'brain') ? DEPTS[f].name : 'ВЕСЬ ОФИС';
     P_.chips.innerHTML = chipsHTML();
     const list = scoped().filter(t => filter === 'all' || t.state === filter)
       .sort((a, b) => b.changedAt - a.changedAt).slice(0, 60);
     const before = structural ? {} : rects();
     P_.rows.innerHTML = filter === 'sched'
-      ? ((scopedRoutines().sort(byNext).map(rowHTMLr).join('') + scoped().filter(t => t.state === 'scheduled').sort((a, b) => a.dueAt - b.dueAt).map(rowHTMLp).join('')) || `<div class="tp-empty">No routines yet. Type one with a time in it — "every weekday at 8am, …" — or press REPEAT. Press <b>P</b> for the calendar to schedule a task for a date.${RT_DEPTS.includes(dept) ? '' : ' Routines: Emails, Accounting and Sales this release.'}</div>`)
-      : (list.map(rowHTMLp).join('') || `<div class="tp-empty">Nothing here right now.</div>`);
+      ? ((scopedRoutines().sort(byNext).map(rowHTMLr).join('') + scoped().filter(t => t.state === 'scheduled').sort((a, b) => a.dueAt - b.dueAt).map(rowHTMLp).join('')) || `<div class="tp-empty">Сценариев пока нет. Напишите задачу со временем — «по будням в 8:00, …» — или нажмите ПОВТОР. Нажмите <b>P</b>, чтобы открыть календарь.${RT_DEPTS.includes(dept) ? '' : ' Сейчас сценарии доступны для почты, финансов и продаж.'}</div>`)
+      : (list.map(rowHTMLp).join('') || `<div class="tp-empty">Сейчас здесь ничего нет.</div>`);
     renderNext();
     P_.rows.querySelectorAll('.tp-act button').forEach(b => b.addEventListener('click', e => { e.stopPropagation(); const row = b.closest('.tp-row'); if (row.dataset.rid) rtAct(row.dataset.rid, b.dataset.act); else if (b.dataset.act === 'cancel') cancelScheduled(tasks.find(t => String(t.id) === row.dataset.id)); else if (b.dataset.act === 'calendar' && calendar) calendar.open(); }));
     P_.rows.querySelectorAll('.tp-row.waiting').forEach(n => n.addEventListener('click', () => zoomToApproval(n.dataset.dept)));
@@ -798,7 +799,7 @@ export function initTasks(ctx) {
       const el = P_.rows.querySelector(`[data-ago="${t.id}"]`);
       if (el) el.textContent = span(now - t.changedAt);
     }
-    for (const r of routines) { const el = P_.rows.querySelector(`[data-rago="${r.id}"]`); if (el) el.textContent = r.paused ? 'PAUSED' : untilText(r.nextAt, now); }
+    for (const r of routines) { const el = P_.rows.querySelector(`[data-rago="${r.id}"]`); if (el) el.textContent = r.paused ? 'ПРИОСТАНОВЛЕН' : untilText(r.nextAt, now); }
     renderNext();
     // waiting / backlog metas carry a duration too — cheap to re-render those lines
     P_.rows.querySelectorAll('.tp-row.waiting .tp-m, .tp-row.next .tp-m').forEach(m => {
@@ -818,11 +819,11 @@ export function initTasks(ctx) {
     const pct = Math.round(t.progress * 100);
     const av = `<span class="tk-av" style="border-color:${chip};background:${chip}55">${a.name[0]}</span>`;
     let meta;
-    if (t.state === 'done') meta = `<span class="tk-tick">✓</span><span>${a.name}</span><span class="tk-pct">${t.approved ? 'APPROVED · ' : ''}${t.modelUsed ? modelName(t.modelUsed).toUpperCase() + ' · ' : ''}${timeStr(t.doneAt)}</span>`;
-    else if (t.state === 'waiting') meta = `${av}<span>${a.name}</span><span class="tk-chip">WAITING ${span(Date.now() - t.changedAt).toUpperCase()}</span>`;
-    else if (t.state === 'doing') meta = `${av}<span>${a.name}</span><span class="tk-pct" data-pct="${t.id}">${t.agent === 'vid' ? 'RENDER · ' : ''}${pct}%</span>`;
+    if (t.state === 'done') meta = `<span class="tk-tick">✓</span><span>${a.name}</span><span class="tk-pct">${t.approved ? 'ОДОБРЕНО · ' : ''}${t.modelUsed ? modelName(t.modelUsed).toUpperCase() + ' · ' : ''}${timeStr(t.doneAt)}</span>`;
+    else if (t.state === 'waiting') meta = `${av}<span>${a.name}</span><span class="tk-chip">ОЖИДАЕТ ${span(Date.now() - t.changedAt).toUpperCase()}</span>`;
+    else if (t.state === 'doing') meta = `${av}<span>${a.name}</span><span class="tk-pct" data-pct="${t.id}">${t.agent === 'vid' ? 'РЕНДЕР · ' : ''}${pct}%</span>`;
     else if (t.state === 'scheduled') meta = `${av}<span>${a.name}</span><span class="tk-pct">${esc(untilText(t.dueAt).toUpperCase())}</span>`;
-    else meta = `${av}<span>${a.name}</span><span class="tk-pct">${span(Date.now() - t.addedAt).toUpperCase()} IN BACKLOG</span>`;
+    else meta = `${av}<span>${a.name}</span><span class="tk-pct">В ОЧЕРЕДИ ${span(Date.now() - t.addedAt).toUpperCase()}</span>`;
     return `<div class="tk ${t.state === 'scheduled' ? 'sched scheduled' : t.state}${t.revised ? ' rev' : ''}" data-id="${t.id}" data-dept="${t.dept}">
       <div class="tk-t">${t.routine || t.state === 'scheduled' ? '⏱ ' : ''}${t.team?.members?.length ? '⚑ ' : t.piece ? '↳ ' : ''}${esc(t.title)}</div><div class="tk-m">${meta}</div>
       ${t.state === 'doing' ? `<div class="tk-bar"><i data-bar="${t.id}" style="width:${pct}%"></i></div>` : ''}</div>`;
@@ -839,20 +840,20 @@ export function initTasks(ctx) {
     return `<div class="tk sched${r.paused ? ' paused' : ''}" data-rid="${r.id}" data-dept="${r.dept}"><div class="tk-t">⏱ ${esc(r.title)}</div>
       <div class="tk-m"><span class="tk-av" style="border-color:${chip};background:${chip}55">${a.name[0]}</span><span>${a.name} · ${modelName(r.model || officeModel).toUpperCase()}</span><span class="tk-pct">${r.paused ? 'PAUSED' : esc(untilText(r.nextAt).toUpperCase())}</span></div></div>`;
   }
-  const COLS = [['sched', 'SCHEDULED'], ['next', 'BACKLOG'], ['doing', 'IN PROGRESS'], ['waiting', 'WAITING ON APPROVAL'], ['done', 'DONE']];
+  const COLS = [['sched', 'ЗАПЛАНИРОВАНО'], ['next', 'ОЧЕРЕДЬ'], ['doing', 'В РАБОТЕ'], ['waiting', 'ЖДЁТ ОДОБРЕНИЯ'], ['done', 'ГОТОВО']];
   function companyHTML() {
     const tot = st => DEPT_KEYS.reduce((s, k) => s + deptTasks(k, st).length, 0);
     const doneAll = DEPT_KEYS.reduce((s, k) => s + doneCount[k], 0);
     return `<div class="bd-head">
-        <span class="b-name"><span class="bd-title">Agents Office</span>Today's board</span>
-        <span class="bd-stats"><span>SCHEDULED<b>${routines.length + tot('scheduled')}</b></span><span>IN PROGRESS<b>${tot('doing')}</b></span><span>BACKLOG<b>${tot('next')}</b></span><span>WAITING<b>${tot('waiting')}</b></span><span>DONE<b>${doneAll}</b></span></span></div>
+        <span class="b-name"><span class="bd-title">Офис агентов</span>Доска на сегодня</span>
+        <span class="bd-stats"><span>ЗАПЛАНИРОВАНО<b>${routines.length + tot('scheduled')}</b></span><span>В РАБОТЕ<b>${tot('doing')}</b></span><span>ОЧЕРЕДЬ<b>${tot('next')}</b></span><span>ОЖИДАЕТ<b>${tot('waiting')}</b></span><span>ГОТОВО<b>${doneAll}</b></span></span></div>
       <div class="bd-lanes"><div class="lh"></div>${COLS.map(([, lab]) => `<div class="lh">${lab}</div>`).join('')}
       ${DEPT_KEYS.map(k => {
         const d = DEPTS[k], n = AGENTS.filter(a => a.dept === k).length;
-        return `<div class="ld"><span><span class="dot" style="background:${d.chip}"></span>${d.short}</span><b>${n} agents</b></div>` +
+        return `<div class="ld"><span><span class="dot" style="background:${d.chip}"></span>${d.short}</span><b>агентов: ${n}</b></div>` +
           COLS.map(([st]) => {
             const list = st === 'sched' ? [...deptRoutines(k).sort(byNext), ...byState(k, 'scheduled').sort((a, b) => a.dueAt - b.dueAt)] : byState(k, st), show = list.slice(0, 2);
-            return `<div class="lc">${show.map(x => x.state ? cardHTML(x) : cardHTMLr(x)).join('')}${list.length > 2 ? `<div class="more">+${list.length - 2} more</div>` : ''}</div>`;
+            return `<div class="lc">${show.map(x => x.state ? cardHTML(x) : cardHTMLr(x)).join('')}${list.length > 2 ? `<div class="more">ещё ${list.length - 2}</div>` : ''}</div>`;
           }).join('');
       }).join('')}</div>`;
   }
@@ -896,23 +897,23 @@ export function initTasks(ctx) {
   function handleChat(agentId, text) {
     if (!live) { // demo: "every weekday at 8am, …" · "routines" (live: the server handles these, so fall through)
       const k0 = R[agentId].a.dept, a0 = R[agentId].a;
-      if (/^\s*(routines?|schedule|timetable)\s*\??\s*$/i.test(text)) {
+      if (/^\s*(routines?|schedule|timetable|сценарии|расписание)\s*\??\s*$/i.test(text)) {
         if (!RT_DEPTS.includes(k0)) return rtRefuse(k0);
         const mine = deptRoutines(k0).sort(byNext);
-        return mine.length ? `${RT_NAMES[k0]} routines:\n` + mine.map(r => `• ${r.title} — ${r.desc} · ${agentOf(r.agent).name}${r.paused ? ' · PAUSED' : ''}`).join('\n') : `Nothing on the ${RT_NAMES[k0]} timetable yet. Give me one with a time in it — "every weekday at 8am, …".`;
+        return mine.length ? `Сценарии отдела «${RT_NAMES[k0]}»:\n` + mine.map(r => `• ${r.title} — ${r.desc} · ${agentOf(r.agent).name}${r.paused ? ' · ПРИОСТАНОВЛЕН' : ''}`).join('\n') : `В расписании отдела «${RT_NAMES[k0]}» пока ничего нет. Добавьте задачу со временем — «по будням в 8:00, …».`;
       }
       const p = parseWhen(text);
       if (p) {
         if (!RT_DEPTS.includes(k0)) return rtRefuse(k0);
-        if (p.needsDay) return 'Which day? Say it again with the day: "every Monday at 9am, …".';
-        if (p.needsTime) return 'What time? Say it again with the time, e.g. "every weekday at 8am, …".';
-        if (!p.text) return 'I have the time but not the task. Say it again with what should happen.';
+        if (p.needsDay) return 'В какой день? Повторите с днём: «каждый понедельник в 9:00, …».';
+        if (p.needsTime) return 'В какое время? Повторите со временем: «по будням в 8:00, …».';
+        if (!p.text) return 'Время указано, но самой задачи нет. Напишите, что должно произойти.';
         const to = a0.lead ? route(k0, p.text).agent.id : agentId;
         const r = addRoutine(k0, to, p.text, p.when, guessOk(p.text));
-        return `Done. ${r.desc.charAt(0).toUpperCase() + r.desc.slice(1)}, ${to === agentId ? 'I have it' : agentOf(to).name + ' has it'}. ${r.needsOk ? 'Anything to send waits for your OK first.' : 'It only reads, so it will not wait for you.'} Next run ${untilText(r.nextAt)}. Say "routines" to see the list.`;
+        return `Готово. ${r.desc.charAt(0).toUpperCase() + r.desc.slice(1)}, ${to === agentId ? 'задача у меня' : 'задачу получил ' + agentOf(to).name}. ${r.needsOk ? 'Перед отправкой результат дождётся вашего одобрения.' : 'Это только чтение, поэтому одобрение не потребуется.'} Следующий запуск ${untilText(r.nextAt)}. Напишите «сценарии», чтобы увидеть список.`;
       }
     }
-    const m = text.match(/^\s*(?:add\s+(?:a\s+)?(?:new\s+)?task|new\s+task|task|todo)\s*[:\-–—]?\s*(.+)$/i);
+    const m = text.match(/^\s*(?:add\s+(?:a\s+)?(?:new\s+)?task|new\s+task|task|todo|добавь\s+(?:новую\s+)?задачу|новая\s+задача|задача)\s*[:\-–—]?\s*(.+)$/i);
     const k = R[agentId].a.dept;
     if (m) {
       let title = m[1].trim().replace(/[.!]+$/, '');
@@ -920,16 +921,16 @@ export function initTasks(ctx) {
       const { agent: a, matched } = route(k, title);
       const to = matched ? a.id : agentId;
       const t = addTask(to, title, 'you');
-      if (!t) return `${agentOf(to).name} already has five queued — let one finish first, or give it to someone else in ${DEPTS[k].short}.`;
+      if (!t) return `У ${agentOf(to).name} уже пять задач в очереди — дождитесь завершения одной или передайте задачу другому агенту отдела «${DEPTS[k].short}».`;
       const busy = agentTasks(to, 'doing').length > 0;
-      const who = to === agentId ? "I've got it" : `${agentOf(to).name} has it`;
-      return `Added to the ${DEPTS[k].short} backlog — ${who}, ${busy ? 'up next after the current job' : 'starting now'}. It's in the task panel on the right.`;
+      const who = to === agentId ? 'я принял задачу' : `задачу получил ${agentOf(to).name}`;
+      return `Добавлено в очередь отдела «${DEPTS[k].short}» — ${who}, ${busy ? 'начнёт после текущей работы' : 'начинает сейчас'}. Задача видна на панели справа.`;
     }
-    if (/\b(board|what'?s next|next up|what are (you|we) (all )?(doing|working))\b/i.test(text)) {
+    if (/\b(board|what'?s next|next up|what are (you|we) (all )?(doing|working)|доска|что дальше|над чем (ты|вы|мы) работаем)\b/i.test(text)) {
       const list = st => byState(k, st).slice(0, 3).map(t => `• ${t.title} (${agentOf(t.agent).name})`).join('\n');
       const doing = list('doing'), next = list('next'), waiting = list('waiting');
-      return `${DEPTS[k].name} right now:\n\nIN PROGRESS\n${doing || '—'}\n\nBACKLOG\n${next || '—'}` +
-        (waiting ? `\n\nWAITING ON YOU\n${waiting}` : '') + `\n\nDone today: ${doneCount[k]}. Say "add task: …" to put something on the list.`;
+      return `${DEPTS[k].name} сейчас:\n\nВ РАБОТЕ\n${doing || '—'}\n\nОЧЕРЕДЬ\n${next || '—'}` +
+        (waiting ? `\n\nЖДЁТ ВАС\n${waiting}` : '') + `\n\nГотово сегодня: ${doneCount[k]}. Напишите «добавь задачу: …», чтобы пополнить список.`;
     }
     return null;
   }
@@ -973,7 +974,7 @@ export function initTasks(ctx) {
 
   /* ---------- V3.2.1 (16 Sep 2026): the CALENDAR (P) — tasks and routines on their days; click a day to schedule ---------- */
   async function createScheduled({ dept: k, text, at, model }) { // a task for a date: live → the server routes it now and runs it then; demo → session-only
-    if (!(at > Date.now())) return { ok: false, error: 'Pick a time that is still ahead.' };
+    if (!(at > Date.now())) return { ok: false, error: 'Выберите время в будущем.' };
     if (live) {
       try {
         const r = await fetch(API + '/tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ dept: k, text, at, model: normModel(model) || undefined, team: asTeam(text) || undefined }) });

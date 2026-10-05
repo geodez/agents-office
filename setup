@@ -5,46 +5,46 @@ BOLD=$(tput bold 2>/dev/null || true); GREEN=$(tput setaf 2 2>/dev/null || true)
 ok(){ echo "${GREEN}✓${RESET} $1"; }; fail(){ echo "${RED}✗ $1${RESET}"; exit 1; }; step(){ echo; echo "${BOLD}$1${RESET}"; }
 ROOT="$(cd "$(dirname "$0")" && pwd)"; cd "$ROOT"
 
-step "1/4 Checking the basics"
-command -v git >/dev/null 2>&1 || fail "git is missing. macOS: xcode-select --install · Linux: install git, then re-run ./setup"
+step "1/4 Проверка окружения"
+command -v git >/dev/null 2>&1 || fail "Git не найден. macOS: xcode-select --install · Linux: установите Git и снова запустите ./setup"
 ok "git"
-command -v node >/dev/null 2>&1 || fail "Node.js is missing. Install Node 20+ from https://nodejs.org, then re-run ./setup"
+command -v node >/dev/null 2>&1 || fail "Node.js не найден. Установите Node 20+ с https://nodejs.org и снова запустите ./setup"
 NODE_MAJOR=$(node -e 'console.log(process.versions.node.split(".")[0])')
-[[ "$NODE_MAJOR" -ge 20 ]] || fail "Node 20+ required (you have $(node --version))."
+[[ "$NODE_MAJOR" -ge 20 ]] || fail "Требуется Node 20+ (установлена версия $(node --version))."
 ok "Node $(node --version)"
 
 step "2/4 Claude"
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
-  ok "ANTHROPIC_API_KEY is set — the office will use the Claude API"
+  ok "ANTHROPIC_API_KEY задан — офис будет использовать Claude API"
 elif command -v claude >/dev/null 2>&1; then
-  ok "Claude Code $(claude --version 2>/dev/null | head -1) — the office runs on your existing login"
+  ok "Claude Code $(claude --version 2>/dev/null | head -1) — офис использует текущую авторизацию"
 else
-  echo "Installing Claude Code…"
-  curl -fsSL https://claude.ai/install.sh | bash || fail "Claude Code install failed — install it from https://claude.com/claude-code then re-run ./setup"
+  echo "Установка Claude Code…"
+  curl -fsSL https://claude.ai/install.sh | bash || fail "Не удалось установить Claude Code. Установите его с https://claude.com/claude-code и снова запустите ./setup"
   export PATH="$HOME/.local/bin:$PATH"
-  command -v claude >/dev/null 2>&1 || fail "claude is not on your PATH — open a NEW terminal and re-run ./setup"
-  ok "Claude Code installed. Run ${BOLD}claude${RESET} once to log in (browser), type exit, then come back."
+  command -v claude >/dev/null 2>&1 || fail "Команда claude отсутствует в PATH. Откройте НОВЫЙ терминал и снова запустите ./setup"
+  ok "Claude Code установлен. Один раз выполните ${BOLD}claude${RESET}, войдите через браузер, введите exit и вернитесь сюда."
 fi
 
-step "3/4 Dependencies + build"
-npm install --no-fund --no-audit >/dev/null 2>&1 || fail "npm install failed — run it by hand to see why: npm install"
-ok "npm packages"
-node build.mjs >/dev/null 2>&1 || fail "build failed — run: node build.mjs"
-ok "office built (the Brain graph comes from the folder in office.config.json)"
+step "3/4 Зависимости и сборка"
+npm install --no-fund --no-audit >/dev/null 2>&1 || fail "Не удалось выполнить npm install. Запустите вручную: npm install"
+ok "Пакеты npm установлены"
+node build.mjs >/dev/null 2>&1 || fail "Сборка завершилась ошибкой. Выполните: node build.mjs"
+ok "Офис собран; граф Базы знаний создан из папки в office.config.json"
 
-step "4/4 First boot"
+step "4/4 Первый запуск"
 PORT=$(node -e "import('./config.mjs').then(m=>console.log(m.loadConfig().port))")
 if lsof -ti tcp:"$PORT" >/dev/null 2>&1; then
-  echo "  Port $PORT is already in use — skipping the boot test (is the office already running?)."
+  echo "  Порт $PORT уже занят — проверка запуска пропущена. Возможно, офис уже работает."
 else
   node serve.mjs > /tmp/agents-office-setup.log 2>&1 & BOOT=$!
   UP=""; for _ in $(seq 1 15); do curl -sf "http://localhost:$PORT/api/health" >/dev/null 2>&1 && { UP=1; break; }; sleep 1; done
   kill "$BOOT" 2>/dev/null
-  [[ -n "$UP" ]] || fail "The office didn't come up — see /tmp/agents-office-setup.log"
-  ok "Office boots on port $PORT"
+  [[ -n "$UP" ]] || fail "Офис не запустился — смотрите /tmp/agents-office-setup.log"
+  ok "Офис запускается на порту $PORT"
 fi
 
-echo; echo "${GREEN}${BOLD}Setup complete.${RESET}"; echo
-echo "  1. Point it at your notes: edit ${BOLD}office.config.json${RESET} (name, brain folder). The sample brain works out of the box."
-echo "  2. Start:  ${BOLD}npm start${RESET}"
-echo "  3. Open:   ${BOLD}http://localhost:$PORT${RESET} — type a task in the bar, pick a department, press Add."
+echo; echo "${GREEN}${BOLD}Установка завершена.${RESET}"; echo
+echo "  1. Подключите заметки: измените ${BOLD}office.config.json${RESET} (название и папку brain). Пример работает сразу."
+echo "  2. Запустите: ${BOLD}npm start${RESET}"
+echo "  3. Откройте:  ${BOLD}http://localhost:$PORT${RESET} — напишите задачу, выберите отдел и нажмите «ДОБАВИТЬ»."

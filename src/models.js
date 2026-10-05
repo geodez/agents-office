@@ -13,9 +13,9 @@ export const MODELS = {
 };
 export const MODEL_KEYS = ['sonnet', 'opus', 'fable'];
 export const DEFAULT_MODEL = 'sonnet';
-export const FROM_TEXT = { task: 'this task', routine: 'this routine', agent: 'this agent', office: 'office default', model: 'the model\'s own' };
+export const FROM_TEXT = { task: 'эта задача', routine: 'этот сценарий', agent: 'этот агент', office: 'настройка офиса', model: 'настройка модели' };
 export const EFFORT_KEYS = ['low', 'medium', 'high', 'xhigh', 'max'];
-export const EFFORT_NAME = { low: 'Low', medium: 'Medium', high: 'High', xhigh: 'X-high', max: 'Max' };
+export const EFFORT_NAME = { low: 'Низкая', medium: 'Средняя', high: 'Высокая', xhigh: 'Очень высокая', max: 'Максимальная' };
 
 /** "High" · "xhigh" · "extra high" → the CLI level; empty/auto/unknown → null. */
 export function normEffort(s) {
@@ -25,7 +25,7 @@ export function normEffort(s) {
   if (t === 'maximum') return 'max';
   return EFFORT_KEYS.includes(t) ? t : null;
 }
-export const effortName = k => EFFORT_NAME[k] || 'Auto';
+export const effortName = k => EFFORT_NAME[k] || 'Авто';
 
 /** The effort that wins, and where it was set; falls through to the model's own default (may be null = the CLI decides). */
 export function effortFor({ task, routine, agent, office, model } = {}) {

@@ -8,17 +8,17 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-const START = /^\s*(set\s?-?up|onboard(ing)?|interview\s+me|teach\s+(you|the\s+team)|let'?s\s+(set\s?up|start)|start\s+the\s+interview)\b/i;
-const CANCEL = /^\s*(cancel|stop|never\s?mind|forget\s+it)\s*[.!]?\s*$/i;
-const SKIP = /^\s*(skip|pass|next)\s*[.!]?\s*$/i;
-const DONE = /^\s*(done|finish|that'?s\s+(it|all|enough)|enough)\s*[.!]?\s*$/i;
+const START = /^\s*(set\s?-?up|onboard(ing)?|interview\s+me|teach\s+(you|the\s+team)|let'?s\s+(set\s?up|start)|start\s+the\s+interview|настроить|настройка|начать\s+настройку)\b/i;
+const CANCEL = /^\s*(cancel|stop|never\s?mind|forget\s+it|отмена|отмени|стоп)\s*[.!]?\s*$/i;
+const SKIP = /^\s*(skip|pass|next|пропустить|дальше)\s*[.!]?\s*$/i;
+const DONE = /^\s*(done|finish|that'?s\s+(it|all|enough)|enough|готово|закончить|достаточно)\s*[.!]?\s*$/i;
 
 export const QUESTIONS = [
-  { k: 'what', q: d => `First: what does ${d} actually do here, in your words? What comes in, what goes out, and who is it for?` },
-  { k: 'job', q: d => `Walk me through the one ${d.toLowerCase()} job you do most often, start to finish. Where does it start, what do you check, what does the finished thing look like?` },
-  { k: 'good', q: () => `What does a good result look like? If you have one you were happy with, paste it in or describe it. If you have a template, describe its sections.` },
-  { k: 'never', q: () => `What must never happen? Red lines, things that always wait for you, anything that has gone wrong before and must not again.` },
-  { k: 'tools', q: () => `Which tools or systems do we use for this, and who are the people involved (clients, suppliers, staff, a bookkeeper)? Say "skip" if nothing comes to mind.` },
+  { k: 'what', q: d => `Сначала: чем именно занимается отдел «${d}»? Что поступает на вход, что получается на выходе и для кого?` },
+  { k: 'job', q: d => `Опишите от начала до конца самую частую задачу отдела «${d}»: с чего она начинается, что вы проверяете и как выглядит готовый результат?` },
+  { k: 'good', q: () => `Как выглядит хороший результат? Вставьте удачный пример или опишите его. Если есть шаблон, перечислите его разделы.` },
+  { k: 'never', q: () => `Чего нельзя допускать? Назовите красные линии, действия, которые всегда ждут вашего одобрения, и ошибки, которые не должны повториться.` },
+  { k: 'tools', q: () => `Какие инструменты и системы вы используете и какие люди участвуют в процессе? Напишите «пропустить», если добавить нечего.` },
 ];
 
 export const stateFile = dataDir => path.join(dataDir, 'interviews.json');
@@ -31,7 +31,7 @@ export function isSetUp(agents, skills, dept) {
   return agents.some(a => a.department === dept && (a.brief || skills.forAgent(a).some(s => s.source === 'brain')));
 }
 
-const progress = (i, d) => `**Question ${i + 1} of ${QUESTIONS.length}.** ${QUESTIONS[i].q(d)}`;
+const progress = (i, d) => `**Вопрос ${i + 1} из ${QUESTIONS.length}.** ${QUESTIONS[i].q(d)}`;
 
 /**
  * One chat turn. Returns { reply, wrote? } when the interview handles it, or null to let the normal chat answer.
@@ -43,23 +43,23 @@ export async function handle(text, ctx) {
   if (!cur) {
     if (!START.test(text)) return null;
     st[dept] = { step: 0, answers: [], startedAt: Date.now() }; save(dataDir, st);
-    return { reply: `Good. Five questions about how ${d} works here, one at a time. Answer in plain words, as much or as little as you like. "skip" skips one, "done" finishes early, "cancel" throws it all away. Nothing is written down until the end, and then I will tell you exactly what I wrote and where.\n\n${progress(0, d)}` };
+    return { reply: `Хорошо. Я задам пять вопросов о работе отдела «${d}», по одному за раз. Отвечайте своими словами. «Пропустить» — перейти дальше, «готово» — закончить раньше, «отмена» — удалить ответы. До завершения ничего не сохраняется.\n\n${progress(0, d)}` };
   }
-  if (CANCEL.test(text)) { delete st[dept]; save(dataDir, st); return { reply: `Cancelled. Nothing was written. Say "set up" whenever you want to start again.` }; }
+  if (CANCEL.test(text)) { delete st[dept]; save(dataDir, st); return { reply: `Отменено. Ничего не сохранено. Напишите «настроить», когда захотите начать снова.` }; }
   let finish = false;
-  if (DONE.test(text)) { if (!cur.answers.some(Boolean)) { delete st[dept]; save(dataDir, st); return { reply: `Nothing to write yet. Say "set up" when you have a few minutes.` }; } finish = true; }
+  if (DONE.test(text)) { if (!cur.answers.some(Boolean)) { delete st[dept]; save(dataDir, st); return { reply: `Сохранять пока нечего. Напишите «настроить», когда будете готовы.` }; } finish = true; }
   else { cur.answers.push(SKIP.test(text) ? '' : String(text).trim()); cur.step = cur.answers.length; if (cur.step >= QUESTIONS.length) finish = true; }
-  if (!finish) { save(dataDir, st); return { reply: `Noted.\n\n${progress(cur.step, d)}` }; }
+  if (!finish) { save(dataDir, st); return { reply: `Записал.\n\n${progress(cur.step, d)}` }; }
   delete st[dept]; save(dataDir, st); // whatever happens next, the interview is over
   const answers = QUESTIONS.map((q, i) => ({ k: q.k, q: q.q(d), a: cur.answers[i] || '' })).filter(x => x.a);
   const wrote = await writeUp(answers, ctx);
   const briefs = wrote.briefs.map(b => `${ctx.agents.find(a => a.id === b.id)?.name || b.id}`).join(', ');
-  const lines = [`Done. Here is what I wrote down for ${d}:`];
-  if (wrote.briefs.length) lines.push(`- A brief for ${briefs} in \`${wrote.agentsFile}\` — what each of them now knows about how you work.`);
-  if (wrote.skill) lines.push(`- A skill, **${wrote.skill.name}**${wrote.skill.description ? ' (' + wrote.skill.description + ')' : ''}, for ${wrote.skill.agents.map(id => ctx.agents.find(a => a.id === id)?.name || id).join(' and ')} in \`${wrote.skill.dir}\`${wrote.skill.template ? ' with a template beside it' : ''}.`);
-  if (!wrote.briefs.length && !wrote.skill) lines.push(`- Nothing usable came out of the answers, so nothing was written. Say "set up" to try again with more detail.`);
-  if (wrote.problems.length) lines.push(`- Skipped: ${wrote.problems.join('; ')}.`);
-  lines.push(`They apply from the next task. Try it: pick ${d} in the task bar and type "${wrote.tryTask || 'the job you described, for a real client'}". If the result is off, send it back with "revise: …" and I will remember the correction. Edit the files any time; they are yours.`);
+  const lines = [`Готово. Для отдела «${d}» сохранено:`];
+  if (wrote.briefs.length) lines.push(`- Бриф для ${briefs} в \`${wrote.agentsFile}\`.`);
+  if (wrote.skill) lines.push(`- Навык **${wrote.skill.name}**${wrote.skill.description ? ' (' + wrote.skill.description + ')' : ''} для ${wrote.skill.agents.map(id => ctx.agents.find(a => a.id === id)?.name || id).join(', ')} в \`${wrote.skill.dir}\`${wrote.skill.template ? ' с шаблоном' : ''}.`);
+  if (!wrote.briefs.length && !wrote.skill) lines.push(`- В ответах не хватило данных, поэтому ничего не сохранено. Напишите «настроить», чтобы попробовать снова.`);
+  if (wrote.problems.length) lines.push(`- Пропущено: ${wrote.problems.join('; ')}.`);
+  lines.push(`Настройки применятся со следующей задачи. Выберите «${d}» на панели и введите: «${wrote.tryTask || 'описанная задача для реального клиента'}». Если результат нужно исправить, напишите «доработай: …».`);
   return { reply: lines.join('\n'), wrote };
 }
 
@@ -67,7 +67,7 @@ export async function handle(text, ctx) {
 export async function writeUp(answers, ctx) {
   const { dept, deptName: d, lead, agents, connected = [], brainPath, ask, business = '' } = ctx;
   const roster = agents.map(a => `- ${a.id} · ${a.name}${a.lead ? ' (lead)' : ''} · ${a.role} · ${a.does}`).join('\n');
-  const system = `You turn an owner's interview answers into working instructions for the AI agents of the ${d} department of ${business || 'their business'}. Return ONLY a JSON object, no prose, no code fences.`;
+  const system = `You turn an owner's interview answers into working instructions for the AI agents of the ${d} department of ${business || 'their business'}. Write every user-facing field in natural Russian, preserving product names and identifiers. The skill name must remain short kebab-case Latin. Return ONLY a JSON object, no prose, no code fences.`;
   const user = `Agents in ${d} (id · name · role · what they do):\n${roster}\n\nConnected tools: ${connected.join(', ') || 'none'}\n\nThe owner's answers:\n` +
     answers.map(x => `Q: ${x.q}\nA: ${x.a}`).join('\n\n') + '\n\n' +
     'Write:\n' +
@@ -77,10 +77,10 @@ export async function writeUp(answers, ctx) {
     'Return: {"briefs":[{"id":"<agent id>","brief":"<text>"}],"skill":{"name":"","description":"","agents":[],"body":"","template":""}|null,"try":""}';
   let j = null; try { const t = await ask(system, user, { maxTokens: 3000, timeout: 180000 }); const s = t.replace(/```json|```/g, ''); j = JSON.parse(s.slice(s.indexOf('{'), s.lastIndexOf('}') + 1)); } catch (e) { j = { briefs: [], skill: null, try: '', error: e.message }; }
   const ids = new Set(agents.map(a => a.id)); const problems = [];
-  if (j.error) problems.push('Claude did not return usable instructions (' + j.error.split('\n')[0] + ')');
+  if (j.error) problems.push('Claude не вернул пригодные инструкции (' + j.error.split('\n')[0] + ')');
   // briefs → <brain>/Agents Office/agents.json (merged: other agents and other fields untouched)
   const briefs = (Array.isArray(j.briefs) ? j.briefs : []).filter(b => b && ids.has(b.id) && String(b.brief || '').trim()).map(b => ({ id: b.id, brief: String(b.brief).trim().slice(0, 2000) }));
-  for (const b of (Array.isArray(j.briefs) ? j.briefs : [])) if (b && b.id && !ids.has(b.id)) problems.push(`"${b.id}" is not in ${d}`);
+  for (const b of (Array.isArray(j.briefs) ? j.briefs : [])) if (b && b.id && !ids.has(b.id)) problems.push(`агента «${b.id}» нет в отделе «${d}»`);
   const agentsFile = path.join(brainPath, 'Agents Office', 'agents.json');
   if (briefs.length) {
     fs.mkdirSync(path.dirname(agentsFile), { recursive: true });
@@ -95,7 +95,7 @@ export async function writeUp(answers, ctx) {
     let bound = (Array.isArray(j.skill.agents) ? j.skill.agents : []).filter(id => ids.has(id));
     if (!bound.length) bound = [lead.id];
     const dir = path.join(brainPath, 'Agents Office', 'skills', name);
-    if (fs.existsSync(path.join(dir, 'SKILL.md'))) { const bak = path.join(dir, `SKILL.md.backup-${Date.now()}`); fs.copyFileSync(path.join(dir, 'SKILL.md'), bak); problems.push(`a skill called ${name} already existed — the old SKILL.md is kept beside it as ${path.basename(bak)}`); }
+    if (fs.existsSync(path.join(dir, 'SKILL.md'))) { const bak = path.join(dir, `SKILL.md.backup-${Date.now()}`); fs.copyFileSync(path.join(dir, 'SKILL.md'), bak); problems.push(`навык ${name} уже существовал — прежний SKILL.md сохранён рядом как ${path.basename(bak)}`); }
     fs.mkdirSync(dir, { recursive: true });
     const description = String(j.skill.description || '').replace(/\n/g, ' ').trim().slice(0, 160);
     const body = String(j.skill.body).trim().slice(0, 6000);

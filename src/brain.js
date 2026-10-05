@@ -16,7 +16,7 @@ const GROUP_COL = {
   '10-Business': '#BFA2E3', '00-Meta': '#F2B33D', '90-Skills': '#5ADEB7', '30-Customers': '#D1DECD',
   '95-Agents': '#B0ADA3', '80-Finance': '#A9B6F0', '05-Inbox': '#B0ADA3',
 };
-const GROUP_NAME = g => g.replace(/^\d\d-/, '');
+const GROUP_NAME = g => ({ Marketing: 'Маркетинг', Products: 'Продукты', Sales: 'Продажи', Delivery: 'Реализация', Business: 'Бизнес', Meta: 'Система', Skills: 'Навыки', Customers: 'Клиенты', Agents: 'Агенты', Finance: 'Финансы', Inbox: 'Входящие' }[g.replace(/^\d\d-/, '')] || g.replace(/^\d\d-/, ''));
 // which folders each department reads from (and writes into)
 const DEPT_FOLDERS = {
   marketing: ['40-Marketing', '20-Brand'], sales: ['60-Sales', '50-Products', '30-Customers'],
@@ -26,7 +26,7 @@ const DEPT_FOLDERS = {
 let INK = '21,20,20'; // dark mode swaps this for the cream ink (setTheme)
 const GREEN = '#1E9070';
 const slug = t => String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 42);
-const timeStr = ts => new Date(ts).toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
+const timeStr = ts => new Date(ts).toLocaleTimeString('ru-RU', { hour: 'numeric', minute: '2-digit' }).toLowerCase();
 const agentOf = id => AGENTS.find(a => a.id === id);
 
 export function initBrain({ scene, brainGroup, getR, esc, hud, toScreen, getCamera }) {
@@ -217,10 +217,10 @@ export function initBrain({ scene, brainGroup, getR, esc, hud, toScreen, getCame
   }
   function updateStrip() {
     if (!strip) return;
-    strip.querySelector('.tb-count').textContent = state.notes.toLocaleString('en-NZ');
+    strip.querySelector('.tb-count').textContent = state.notes.toLocaleString('ru-RU');
     const lr = strip.querySelector('.tb-last');
-    lr.innerHTML = state.lastRead ? `Last read <b>${esc(state.lastRead.note)}</b> by ${esc(state.lastRead.agent)} · ${timeStr(state.lastRead.ts)}` : `${BRAIN.links.length} wiki links · nothing read yet`;
-    strip.querySelector('.tb-new').textContent = state.newToday ? `+${state.newToday} note${state.newToday > 1 ? 's' : ''} today` : '';
+    lr.innerHTML = state.lastRead ? `Последнее чтение: <b>${esc(state.lastRead.note)}</b> · ${esc(state.lastRead.agent)} · ${timeStr(state.lastRead.ts)}` : `${BRAIN.links.length} связей · пока ничего не прочитано`;
+    strip.querySelector('.tb-new').textContent = state.newToday ? `+${state.newToday} новых заметок сегодня` : '';
   }
   updateStrip();
 
@@ -234,7 +234,7 @@ export function initBrain({ scene, brainGroup, getR, esc, hud, toScreen, getCame
   const on = new Set(groups);
   function chips() {
     chipsEl.innerHTML = groups.map(g => `<button class="bv-chip${on.has(g) ? ' on' : ''}" data-g="${g}"><i style="background:${GROUP_COL[g] || '#B0ADA3'}"></i>${GROUP_NAME(g)}</button>`).join('') +
-      `<button class="bv-chip live${freshOnly ? ' on' : ''}" data-g="__fresh">New today · ${state.newToday}</button>`;
+      `<button class="bv-chip live${freshOnly ? ' on' : ''}" data-g="__fresh">Новые сегодня · ${state.newToday}</button>`;
   }
   chipsEl.addEventListener('click', e => {
     const b = e.target.closest('.bv-chip'); if (!b) return;
@@ -265,11 +265,11 @@ export function initBrain({ scene, brainGroup, getR, esc, hud, toScreen, getCame
     sel = n;
     const out = [...adj[n.i]].map(i => nodes[i]).sort((a, b) => b.d - a.d);
     const rd = state.reads.get(n.id), wr = state.written.get(n.id);
-    pane.innerHTML = `<h3>${esc(n.id)}</h3><div class="bv-path"><i style="background:${GROUP_COL[n.g] || '#B0ADA3'}"></i>${esc(GROUP_NAME(n.g))} · ${n.d} link${n.d === 1 ? '' : 's'}${n.fresh ? ' · <span class="bv-g">new today</span>' : ''}</div>` +
-      (wr ? `<div class="bv-lab">Written by</div><p>${esc(wr.agent)} · ${timeStr(wr.ts)} · from the task “${esc(wr.task)}”</p>` : '') +
-      (rd ? `<div class="bv-lab">Last read by</div><p>${esc(rd.agent)} · ${timeStr(rd.ts)}</p>` : '') +
-      `<div class="bv-lab">Links · ${out.length}</div>` + out.slice(0, 18).map(o => `<div class="bv-lk" data-i="${o.i}">${esc(o.id)}</div>`).join('') +
-      (out.length > 18 ? `<div class="bv-more">+${out.length - 18} more</div>` : '');
+    pane.innerHTML = `<h3>${esc(n.id)}</h3><div class="bv-path"><i style="background:${GROUP_COL[n.g] || '#B0ADA3'}"></i>${esc(GROUP_NAME(n.g))} · связей: ${n.d}${n.fresh ? ' · <span class="bv-g">новое сегодня</span>' : ''}</div>` +
+      (wr ? `<div class="bv-lab">Автор</div><p>${esc(wr.agent)} · ${timeStr(wr.ts)} · из задачи «${esc(wr.task)}»</p>` : '') +
+      (rd ? `<div class="bv-lab">Последний читатель</div><p>${esc(rd.agent)} · ${timeStr(rd.ts)}</p>` : '') +
+      `<div class="bv-lab">Связи · ${out.length}</div>` + out.slice(0, 18).map(o => `<div class="bv-lk" data-i="${o.i}">${esc(o.id)}</div>`).join('') +
+      (out.length > 18 ? `<div class="bv-more">ещё ${out.length - 18}</div>` : '');
     pane.querySelectorAll('.bv-lk').forEach(el => el.addEventListener('click', () => { const t = nodes[+el.dataset.i]; select(t); centre(t); }));
   }
   function centre(n) { tx = -n.x * S(); ty = -n.y * S(); }
@@ -301,13 +301,13 @@ export function initBrain({ scene, brainGroup, getR, esc, hud, toScreen, getCame
     }
     requestAnimationFrame(draw);
   }
-  let owner = PROFILE && PROFILE.company ? String(PROFILE.company).toUpperCase() : 'YOUR NOTES'; // V3.1: the business name when served (was hard-coded to one company); INDUSTRY PROFILE: the demo company
-  function setOwner(name) { owner = String(name || 'YOUR NOTES').toUpperCase(); if (openNow) meta.textContent = `${owner} · ${state.notes.toLocaleString('en-NZ')} NOTES · ${links.length} LINKS`; }
+  let owner = PROFILE && PROFILE.company ? String(PROFILE.company).toUpperCase() : 'ВАШИ ЗАМЕТКИ';
+  function setOwner(name) { owner = String(name || 'ВАШИ ЗАМЕТКИ').toUpperCase(); if (openNow) meta.textContent = `${owner} · ${state.notes.toLocaleString('ru-RU')} ЗАМЕТОК · ${links.length} СВЯЗЕЙ`; }
   function open() {
     if (openNow) return;
     openNow = true; ov.classList.add('on'); document.body.classList.add('brainOpen');
-    meta.textContent = `${owner} · ${state.notes.toLocaleString('en-NZ')} NOTES · ${links.length} LINKS`;
-    chips(); if (!sel) pane.innerHTML = '<div class="bv-empty">Click a note to read it. Hover to see its neighbours.</div>';
+    meta.textContent = `${owner} · ${state.notes.toLocaleString('ru-RU')} ЗАМЕТОК · ${links.length} СВЯЗЕЙ`;
+    chips(); if (!sel) pane.innerHTML = '<div class="bv-empty">Нажмите на заметку, чтобы открыть её. Наведите курсор, чтобы увидеть связи.</div>';
     requestAnimationFrame(draw);
   }
   function close() { if (!openNow) return; openNow = false; ov.classList.remove('on'); document.body.classList.remove('brainOpen'); }

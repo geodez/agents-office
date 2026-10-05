@@ -12,7 +12,7 @@
 //          start: 'YYYY-MM-DD'  (optional, V3.2.1 calendar: nothing fires before this date — a routine set for the future) }
 
 const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const SHORT = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const WORD_TIMES = { noon: '12:00', midday: '12:00', lunchtime: '12:30', midnight: '00:00', morning: '08:00', mornings: '08:00', afternoon: '14:00', afternoons: '14:00', evening: '17:00', evenings: '17:00', night: '20:00', nights: '20:00' };
 const pad = n => String(n).padStart(2, '0');
 const hhmm = (h, m = 0) => `${pad(h)}:${pad(m)}`;
@@ -44,12 +44,27 @@ function dayIndex(word) {
 }
 const cut = (s, span) => (s.slice(0, span[0]) + ' ' + s.slice(span[1]));
 function tidy(s) { // the task text with the schedule taken out
-  return s.replace(/\s+/g, ' ').replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g, '').replace(/^(?:and|then|please|to)\s+/i, '').replace(/\s+,/g, ',').trim();
+  return s.replace(/\s+/g, ' ').replace(/^[\s,;:.\-–—]+|[\s,;:.\-–—]+$/g, '').replace(/^(?:and|then|please|to|и|затем|пожалуйста)\s+/i, '').replace(/\s+,/g, ',').trim();
+}
+
+const RU_DAY = { воскресенье: 0, воскресеньям: 0, вс: 0, понедельник: 1, понедельникам: 1, пн: 1, вторник: 2, вторникам: 2, вт: 2, среда: 3, средам: 3, ср: 3, четверг: 4, четвергам: 4, чт: 4, пятница: 5, пятницам: 5, пт: 5, суббота: 6, субботам: 6, сб: 6 };
+function parseRussianWhen(src) {
+  let s = src, m;
+  const time = () => { const x = /(?:в\s+)?([01]?\d|2[0-3])(?::([0-5]\d))\b/i.exec(s); if (!x) return null; const at = hhmm(+x[1], +(x[2] || 0)); s = cut(s, [x.index, x.index + x[0].length]); return at; };
+  if ((m = /\bкаждые\s+(\d+)\s*(?:минуты?|мин)\b/i.exec(s))) return { when: { kind: 'minutes', every: Math.max(1, +m[1]) }, text: tidy(cut(s, [m.index, m.index + m[0].length])) };
+  if ((m = /\b(?:каждый\s+час|ежечасно|каждые\s+(\d+)\s*час(?:а|ов)?)\b/i.exec(s))) return { when: { kind: 'hourly', every: Math.max(1, +(m[1] || 1)) }, text: tidy(cut(s, [m.index, m.index + m[0].length])) };
+  if ((m = /\b(?:каждый\s+будний\s+день|по\s+будням|в\s+будни)\b/i.exec(s))) { s = cut(s, [m.index, m.index + m[0].length]); const at = time(); return { when: { kind: 'weekdays', at }, text: tidy(s), needsTime: !at }; }
+  if ((m = /\b(?:каждый\s+день|ежедневно)\b/i.exec(s))) { s = cut(s, [m.index, m.index + m[0].length]); const at = time(); return { when: { kind: 'daily', at }, text: tidy(s), needsTime: !at }; }
+  if ((m = /\b(?:по\s+выходным|каждые\s+выходные)\b/i.exec(s))) { s = cut(s, [m.index, m.index + m[0].length]); const at = time(); return { when: { kind: 'weekly', days: [6, 0], at }, text: tidy(s), needsTime: !at }; }
+  const dm = /\b(?:кажд(?:ый|ую|ое)|по|во?)?\s*(понедельникам|понедельник|пн|вторникам|вторник|вт|средам|среда|ср|четвергам|четверг|чт|пятницам|пятница|пт|субботам|суббота|сб|воскресеньям|воскресенье|вс)(?:\s*(?:,|и)\s*(понедельникам|понедельник|пн|вторникам|вторник|вт|средам|среда|ср|четвергам|четверг|чт|пятницам|пятница|пт|субботам|суббота|сб|воскресеньям|воскресенье|вс))*\b/i.exec(s);
+  if (dm) { const days = [...dm[0].toLowerCase().matchAll(/понедельникам|понедельник|пн|вторникам|вторник|вт|средам|среда|ср|четвергам|четверг|чт|пятницам|пятница|пт|субботам|суббота|сб|воскресеньям|воскресенье|вс/g)].map(x => RU_DAY[x[0]]); s = cut(s, [dm.index, dm.index + dm[0].length]); const at = time(); return { when: { kind: 'weekly', days: [...new Set(days)], at }, text: tidy(s), needsTime: !at }; }
+  return null;
 }
 
 /** Plain words → { when, text, guessed, needsTime, needsDay } or null when there is no schedule in the sentence. */
 export function parseWhen(input) {
   const src = String(input || '');
+  const ru = parseRussianWhen(src); if (ru) return ru;
   let s = src, m;
   // every N minutes (filming cadence — accepted, never offered)
   if ((m = /\bevery\s+(\d+)\s*(?:min|mins|minutes?)\b/i.exec(s))) {
@@ -127,27 +142,27 @@ export function fromPicker(cadence, at, start) {
 }
 const startMs = when => when && /^\d{4}-\d{2}-\d{2}$/.test(when.start || '') ? new Date(when.start + 'T00:00:00').getTime() : null;
 /** "12 Oct" — a short date for the words the office says back. */
-export const shortDate = ts => { const d = new Date(ts); return `${d.getDate()} ${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.getMonth()]}`; };
+export const shortDate = ts => { const d = new Date(ts); return `${d.getDate()} ${['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][d.getMonth()]}`; };
 
 /** A schedule → the words the office says back. */
 export function describe(when) {
   if (!when) return '';
   const base = describeBase(when);
   const s = startMs(when);
-  return base && s && s > Date.now() ? `${base} · from ${shortDate(s)}` : base;
+  return base && s && s > Date.now() ? `${base} · с ${shortDate(s)}` : base;
 }
 function describeBase(when) {
   const at = when.at ? ' · ' + when.at : '';
   switch (when.kind) {
-    case 'minutes': return `every ${when.every} min`;
-    case 'hourly': return (when.every > 1 ? `every ${when.every} hours` : 'every hour') + (when.from ? ` ${when.from}–${when.to}` : '') + (when.weekdaysOnly ? ' · weekdays' : '');
-    case 'daily': return 'every day' + at;
-    case 'weekdays': return 'every weekday' + at;
+    case 'minutes': return `каждые ${when.every} мин`;
+    case 'hourly': return (when.every > 1 ? `каждые ${when.every} ч` : 'каждый час') + (when.from ? ` ${when.from}–${when.to}` : '') + (when.weekdaysOnly ? ' · по будням' : '');
+    case 'daily': return 'каждый день' + at;
+    case 'weekdays': return 'по будням' + at;
     case 'weekly': {
       const d = (when.days || []);
-      if (d.length === 7) return 'every day' + at;
-      if (d.length === 2 && d.includes(0) && d.includes(6)) return 'weekends' + at;
-      return (d.length === 1 ? DAYS[d[0]][0].toUpperCase() + DAYS[d[0]].slice(1) + 's' : d.map(i => SHORT[i]).join(', ')) + at;
+      if (d.length === 7) return 'каждый день' + at;
+      if (d.length === 2 && d.includes(0) && d.includes(6)) return 'по выходным' + at;
+      return (d.length === 1 ? ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'][d[0]] : d.map(i => SHORT[i]).join(', ')) + at;
     }
   }
   return '';
@@ -204,16 +219,16 @@ export function occurrences(when, from, to, limit = 400) {
 export function untilText(ts, now = Date.now()) {
   if (!ts) return '—';
   const ms = ts - now;
-  if (ms <= 0) return 'now';
+  if (ms <= 0) return 'сейчас';
   const m = Math.round(ms / 60000);
-  if (m < 1) return 'in under a minute';
-  if (m < 60) return `in ${m} min`;
+  if (m < 1) return 'меньше чем через минуту';
+  if (m < 60) return `через ${m} мин`;
   const d = new Date(ts), today = new Date(now);
   const sameDay = d.toDateString() === today.toDateString();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const t = hhmm(d.getHours(), d.getMinutes());
-  if (sameDay) return `at ${t}`;
-  if (d.toDateString() === tomorrow.toDateString()) return `tomorrow ${t}`;
+  if (sameDay) return `в ${t}`;
+  if (d.toDateString() === tomorrow.toDateString()) return `завтра в ${t}`;
   return `${SHORT[d.getDay()]} ${t}`;
 }
 export const DAY_NAMES = DAYS;

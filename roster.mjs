@@ -20,7 +20,17 @@ const MODELS = ['sonnet', 'opus', 'fable']; // V3.6: an agent's model, by name; 
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']; // V3.6.1: an agent's effort; empty = the office's, then the model's own
 
 export function defaults() {
-  return AGENTS.map(a => { const p = V1.find(x => x.id === a.id) || {}; return { id: a.id, department: a.dept, lead: !!a.lead, name: a.name, role: p.role || '', does: p.tagline || '', tools: [], brief: '', model: '', effort: '' }; });
+  return AGENTS.map(a => ({
+    id: a.id,
+    department: a.dept,
+    lead: !!a.lead,
+    name: a.name,
+    role: a.lead ? 'Руководитель отдела' : 'ИИ-специалист',
+    does: a.lead
+      ? `Координирует отдел «${DEPTS[a.dept]?.name || a.dept}», распределяет задачи и собирает итоговые результаты.`
+      : `Выполняет задачи по своему направлению в отделе «${DEPTS[a.dept]?.name || a.dept}».`,
+    tools: [], brief: '', model: '', effort: '',
+  }));
 }
 // returns { agents, problems } — problems are human sentences, never thrown
 export function validate(doc, base = defaults()) {
@@ -67,7 +77,12 @@ export function loadRoster(brainPath = loadConfig().brainPath) {
     const doc = read(p); if (!doc) continue;
     const rel = label(p);
     if (doc.__error) { problems.push(`${rel}: not valid JSON (${doc.__error.split('\n')[0]}) — ignored`); continue; }
-    const r = validate(doc, agents); agents = r.agents; problems.push(...r.problems.map(x => `${rel}: ${x}`));
+    // В поставляемом реестре сохраняем подключения и настройки, а русские названия и роли
+    // берём из локализованных значений выше. Пользовательские файлы по-прежнему могут их менять.
+    const sourceDoc = p === FILE && Array.isArray(doc.agents)
+      ? { ...doc, agents: doc.agents.map(({ name, role, does, ...entry }) => entry) }
+      : doc;
+    const r = validate(sourceDoc, agents); agents = r.agents; problems.push(...r.problems.map(x => `${rel}: ${x}`));
   }
   const customised = agents.filter((a, i) => { const d = defaults()[i]; return a.name !== d.name || a.role !== d.role || a.does !== d.does || a.brief; }).length;
   return { agents, problems, customised, briefed: agents.filter(a => a.brief).length, files: sources.filter(p => fs.existsSync(p)).map(label) };
